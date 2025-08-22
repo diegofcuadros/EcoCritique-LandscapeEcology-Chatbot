@@ -119,8 +119,32 @@ class SocraticChatEngine:
             return response
             
         except Exception as e:
-            st.error(f"Error generating response: {str(e)}")
-            return "I'm having trouble processing that. Could you try rephrasing your question?"
+            # If there's an error, try direct concept recognition as fallback
+            user_msg = user_message.lower()
+            
+            # Direct concept recognition with immediate responses
+            if 'transdisciplin' in user_msg:
+                return "Transdisciplinarity is a fascinating concept! What do you think makes it different from simply having biologists and geographers work together on the same problem?"
+            elif 'interdisciplin' in user_msg:
+                return "Good question about interdisciplinary approaches. How might an ecologist and a geographer look at the same landscape differently?"
+            elif 'connectivity' in user_msg:
+                return "Connectivity is crucial in landscape ecology! What do you think makes two habitat patches 'connected' from an animal's perspective?"
+            elif 'fragmentation' in user_msg:
+                return "Habitat fragmentation is a major concern. What do you think happens to wildlife populations when large habitats are broken into smaller pieces?"
+            elif 'scale' in user_msg:
+                return "Scale is fundamental to landscape ecology! What patterns might you see at a landscape scale that wouldn't be visible at a local scale?"
+            elif 'edge effect' in user_msg:
+                return "Edge effects are fascinating! What differences would you expect to find between the edge and interior of a forest fragment?"
+            elif 'metapopulation' in user_msg:
+                return "Metapopulations are a key concept! What do you think happens when local populations are connected by occasional migration?"
+            elif 'disturbance' in user_msg:
+                return "Disturbance is fundamental in landscapes! What different types of disturbances can you think of that affect ecosystems?"
+            elif 'pattern' in user_msg:
+                return "Spatial patterns are key to understanding landscapes! What patterns do you observe in the study area?"
+            elif 'heterogeneity' in user_msg:
+                return "Heterogeneity is what makes landscapes interesting! What creates the spatial variation you see in this landscape?"
+            else:
+                return "That's an interesting question about landscape ecology. Can you tell me more about what specific aspect you'd like to explore?"
     
     def _call_llm_api(self, messages: List[Dict[str, str]]) -> str:
         """Call open source LLM - try multiple providers for best results"""
@@ -501,10 +525,14 @@ class SocraticChatEngine:
         
         # Add knowledge-informed responses if we have relevant knowledge
         if knowledge:
-            knowledge_text = ' '.join(knowledge[:200].split())  # First 200 words
-            if 'source' in knowledge_text.lower() and 'sink' in knowledge_text.lower():
+            # Fix: knowledge is a list, so join it first, then take first 200 words
+            knowledge_text = ' '.join(knowledge)
+            knowledge_words = knowledge_text.split()[:200]
+            knowledge_sample = ' '.join(knowledge_words)
+            
+            if 'source' in knowledge_sample.lower() and 'sink' in knowledge_sample.lower():
                 responses.append("I see you're exploring concepts related to source-sink dynamics. How might habitat quality vary across the landscape in this study?")
-            if 'metapopulation' in knowledge_text.lower():
+            if 'metapopulation' in knowledge_sample.lower():
                 responses.append("This connects to metapopulation theory. What evidence would you need to determine if the populations in this study function as a metapopulation?")
         
         # Add conversation-level appropriate responses
@@ -557,7 +585,7 @@ class SocraticChatEngine:
             
             # Get the user's latest message
             if not messages:
-                return None
+                return ""
             
             user_message = messages[-1]["content"]
             
@@ -569,7 +597,11 @@ class SocraticChatEngine:
             # Create a comprehensive prompt for the open source model
             context = ""
             if relevant_knowledge:
-                context = f"\nRelevant landscape ecology knowledge:\n{' '.join(relevant_knowledge[:500].split())}"
+                # Fix: relevant_knowledge is a list, join it first
+                knowledge_text = ' '.join(relevant_knowledge)
+                knowledge_words = knowledge_text.split()[:500]
+                knowledge_sample = ' '.join(knowledge_words)
+                context = f"\nRelevant landscape ecology knowledge:\n{knowledge_sample}"
             
             # Build conversation history
             conversation = ""
@@ -608,10 +640,10 @@ Provide a thoughtful Socratic response that guides the student's learning. If th
                 except:
                     continue
                     
-            return None
+            return ""  # Return empty string instead of None
             
         except Exception as e:
-            return None
+            return ""
     
     def _call_huggingface_model(self, model: str, prompt: str) -> str:
         """Call specific Hugging Face model"""
@@ -640,7 +672,7 @@ Provide a thoughtful Socratic response that guides the student's learning. If th
                 if generated_text and len(generated_text) > 10:
                     return generated_text
         
-        return None
+        return ""  # Return empty string instead of None
     
     def _try_together_api(self, messages: List[Dict[str, str]]) -> str:
         """Try Together AI API for open source models"""
@@ -649,7 +681,7 @@ Provide a thoughtful Socratic response that guides the student's learning. If th
             # Would need Together API key, but fallback to local for now
             return self._use_advanced_local_llm(messages)
         except:
-            return None
+            return ""
     
     def _use_advanced_local_llm(self, messages: List[Dict[str, str]]) -> str:
         """Use advanced local processing with much better logic"""
