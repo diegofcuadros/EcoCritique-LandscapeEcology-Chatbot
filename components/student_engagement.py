@@ -265,10 +265,17 @@ class StudentEngagementSystem:
                     # Calculate progress to next level
                     current_threshold = self.cognitive_levels[current_level]["threshold"]
                     next_threshold = info["threshold"]
-                    progress_pct = min(100, ((message_count - current_threshold) / 
-                                           (next_threshold - current_threshold)) * 100)
+                    # Ensure we don't get negative values
+                    if message_count > current_threshold:
+                        progress_pct = min(100, ((message_count - current_threshold) / 
+                                               (next_threshold - current_threshold)) * 100)
+                    else:
+                        progress_pct = 0
                 else:
                     progress_pct = 0
+                
+                # Ensure progress_pct is within valid range [0, 100]
+                progress_pct = max(0, min(100, progress_pct))
                 
                 # Display level with progress
                 st.markdown(f"{info['icon']} **{info['name']}**")
