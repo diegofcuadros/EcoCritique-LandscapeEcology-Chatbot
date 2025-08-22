@@ -25,25 +25,31 @@ def initialize_auth():
 def check_authentication(user_type, user_id, access_code):
     """Verify user credentials based on role"""
     
+    # Initialize auth if not already done
+    initialize_auth()
+    
     if user_type == "Guest":
         return True
     
     elif user_type == "Student":
-        # Check if student ID format is valid
-        if not user_id or len(user_id) < 6:
+        # Be more lenient with student ID format
+        if not user_id or len(user_id.strip()) < 3:
             return False
             
         # Check weekly access code
         current_code = st.session_state.weekly_codes.get('current', '')
-        if access_code != current_code:
+        if access_code.strip() != current_code:
             return False
             
         # Add student to roster if not present
-        st.session_state.student_roster.add(user_id)
+        st.session_state.student_roster.add(user_id.strip())
         return True
     
     elif user_type == "Professor":
         # Check professor credentials
+        user_id = user_id.strip() if user_id else ""
+        access_code = access_code.strip() if access_code else ""
+        
         if user_id in st.session_state.professor_credentials:
             stored_hash = st.session_state.professor_credentials[user_id]
             provided_hash = hashlib.sha256(access_code.encode()).hexdigest()

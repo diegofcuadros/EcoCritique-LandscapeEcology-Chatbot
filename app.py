@@ -115,7 +115,13 @@ def show_login_page():
                 st.success(f"Welcome, {user_type}!")
                 st.rerun()
             else:
-                st.error("Invalid credentials. Please check your information and try again.")
+                # Show helpful error messages
+                if user_type == "Student":
+                    st.error("Please check your Student ID (at least 3 characters) and Access Code ('week1_2024')")
+                elif user_type == "Professor":
+                    st.error("Please check your username ('admin') and password ('landscape2024')")
+                else:
+                    st.error("Invalid credentials. Please check your information and try again.")
 
 def show_main_interface():
     user_type = st.session_state.get('user_type', 'Guest')
