@@ -1,0 +1,74 @@
+{
+  "comprehension": [
+    "What is the main research question addressed in this article?",
+    "Can you identify the study system or location described?",
+    "What methods did the researchers use to collect their data?",
+    "What was the primary hypothesis or prediction being tested?",
+    "Can you summarize the main findings in your own words?",
+    "What type of landscape or ecosystem is being studied?",
+    "What spatial or temporal scales are involved in this research?",
+    "How did the authors define their key variables?",
+    "What kind of data did they collect (field observations, remote sensing, modeling)?",
+    "Can you identify any control groups or reference conditions used?"
+  ],
+  "analysis": [
+    "Why do you think the researchers chose this particular approach?",
+    "What patterns do you notice in the results they present?",
+    "How do the findings relate to the hypothesis they proposed?",
+    "What factors might explain the patterns observed in the data?",
+    "How might the study design influence the conclusions?",
+    "What role does spatial scale play in interpreting these results?",
+    "How do you think the landscape context affects the findings?",
+    "What limitations in the methodology might affect the results?",
+    "How do the statistical analyses support the authors' conclusions?",
+    "What alternative explanations could account for these patterns?"
+  ],
+  "synthesis": [
+    "How does this study connect to landscape ecology principles we've discussed?",
+    "What relationship do you see between this work and previous research?",
+    "How might these findings apply to other landscape types?",
+    "Can you connect these results to broader ecological theory?",
+    "How does this research relate to concepts like fragmentation or connectivity?",
+    "What implications do these findings have for landscape management?",
+    "How might climate change influence the patterns described here?",
+    "Can you link this study to other concepts from our course readings?",
+    "How do these findings contribute to our understanding of scale effects?",
+    "What connections do you see between this research and conservation planning?"
+  ],
+  "evaluation": [
+    "What assumptions are the authors making that might not be stated?",
+    "How could the methodology be improved or extended?",
+    "What alternative explanations might exist for these results?",
+    "How transferable are these findings to other systems or regions?",
+    "What are the strengths and weaknesses of this research approach?",
+    "How might bias or uncertainty affect the conclusions?",
+    "What additional data would strengthen the authors' arguments?",
+    "How do the limitations affect the practical applications of this research?",
+    "What ethical considerations might be relevant to this type of research?",
+    "How might technological advances change how we study these questions?",
+    "What policy implications arise from these findings?",
+    "How might stakeholder perspectives differ on these results?"
+  ],
+  "redirection_prompts": [
+    "I notice you're looking for a direct answer. Instead, let me ask you: what do you think based on what you've read?",
+    "Rather than me telling you, what evidence from the article supports your thinking?",
+    "That's a great question to explore! What's your initial thinking about this?",
+    "Instead of giving you the answer, let's work through this together. What patterns do you notice?",
+    "I'm here to guide your thinking, not provide answers. What connections are you making?",
+    "What does the evidence in the article suggest to you?",
+    "Let's approach this step by step. What did you observe first?",
+    "What might the authors have been thinking when they designed this study?",
+    "How might you test that idea using the information provided?"
+  ],
+  "encouragement_prompts": [
+    "That's an interesting observation! What led you to that conclusion?",
+    "Good thinking! Can you expand on that idea?",
+    "I like how you're connecting those concepts. What other relationships do you see?",
+    "That's a thoughtful analysis. How might you test that hypothesis?",
+    "Excellent point! How does that relate to what we've learned about landscape ecology?",
+    "You're on the right track. What other evidence supports that view?",
+    "That's a sophisticated way to think about the problem. What are the implications?",
+    "Good question! What do you think might explain that pattern?",
+    "Interesting perspective! How might that apply to other landscape types?"
+  ]
+}
