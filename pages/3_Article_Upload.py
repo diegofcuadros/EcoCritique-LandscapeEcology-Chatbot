@@ -92,13 +92,20 @@ def display_upload_interface():
             - Ensure PDF is text-readable (not just scanned images)
             """)
         
+        # Research agent option
+        enable_research = st.checkbox(
+            "🤖 Enable AI Research Agent",
+            value=True,
+            help="Automatically research and gather related information about this article from the web"
+        )
+        
         # Submit button
         submitted = st.form_submit_button("Upload Article", use_container_width=True)
         
         if submitted:
-            upload_article(uploaded_file, article_title, week_number, learning_objectives, key_concepts)
+            upload_article(uploaded_file, article_title, week_number, learning_objectives, key_concepts, enable_research)
 
-def upload_article(uploaded_file, title, week_number, objectives, concepts):
+def upload_article(uploaded_file, title, week_number, objectives, concepts, enable_research=False):
     """Process and save uploaded article"""
     
     # Validation
@@ -153,6 +160,38 @@ def upload_article(uploaded_file, title, week_number, objectives, concepts):
             if concepts.strip():
                 rag_system = get_rag_system()
                 rag_system.add_to_knowledge_base(f"Article: {title}\nKey concepts: {concepts}")
+            
+            # Run AI Research Agent if enabled
+            if enable_research:
+                with st.spinner("🔍 AI Research Agent gathering related information..."):
+                    try:
+                        from components.research_agent import get_research_agent
+                        research_agent = get_research_agent()
+                        
+                        # Extract article text for research
+                        article_text = ""
+                        for page in pdf_reader.pages:
+                            article_text += page.extract_text()
+                        
+                        research_results = research_agent.research_article(
+                            title,
+                            article_text,
+                            f"week{week_number}_{article_id}"
+                        )
+                        
+                        st.success("🤖 Research Agent completed!")
+                        st.info(f"""
+**Research Summary:**
+- 📁 Research folder: `{research_results['folder_path']}`
+- 🔍 Concepts analyzed: {research_results['concepts_found']}
+- 🌐 Web searches performed: {research_results['searches_performed']}
+- 📚 Knowledge chunks created: {research_results['knowledge_chunks_created']}
+
+The AI chatbot now has enhanced knowledge about this article!
+                        """)
+                    except Exception as e:
+                        st.warning(f"Research agent encountered an issue: {str(e)}")
+                        st.info("Article uploaded successfully, but additional research could not be completed.")
             
             # Show preview
             with st.expander("📄 Upload Summary", expanded=True):
