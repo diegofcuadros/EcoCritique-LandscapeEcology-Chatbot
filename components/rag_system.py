@@ -9,7 +9,9 @@ import re
 class LandscapeEcologyRAG:
     def __init__(self):
         self.knowledge_base = []
+        self.knowledge_sources = {}  # Track different knowledge sources
         self.load_knowledge_base()
+        self.load_additional_sources()
     
     def load_knowledge_base(self):
         """Load landscape ecology knowledge base"""
@@ -110,6 +112,192 @@ class LandscapeEcologyRAG:
             formatted_result += f"{i}. {chunk}\n\n"
         
         return formatted_result
+    
+    def load_additional_sources(self):
+        """Load additional knowledge sources to make the chatbot more comprehensive"""
+        
+        # Add textbook-style content
+        textbook_content = self._get_textbook_knowledge()
+        if textbook_content:
+            self.add_knowledge_source("textbook", textbook_content)
+        
+        # Add case studies
+        case_studies = self._get_case_studies()
+        if case_studies:
+            self.add_knowledge_source("case_studies", case_studies)
+        
+        # Add research examples
+        research_examples = self._get_research_examples()
+        if research_examples:
+            self.add_knowledge_source("research", research_examples)
+        
+        # Add real-world applications
+        applications = self._get_real_world_applications()
+        if applications:
+            self.add_knowledge_source("applications", applications)
+    
+    def add_knowledge_source(self, source_name: str, content: str):
+        """Add a new knowledge source with tracking"""
+        chunks = [chunk.strip() for chunk in content.split('\n\n') if chunk.strip()]
+        
+        # Tag chunks with their source
+        tagged_chunks = [f"[{source_name.upper()}] {chunk}" for chunk in chunks]
+        
+        self.knowledge_base.extend(tagged_chunks)
+        self.knowledge_sources[source_name] = len(tagged_chunks)
+        
+        # Rebuild search index
+        self._build_search_index()
+    
+    def _get_textbook_knowledge(self) -> str:
+        """Comprehensive textbook-style landscape ecology knowledge"""
+        return """
+Landscape Ecology Principles and Applications
+
+Spatial Scale Relationships
+The relationship between pattern and process varies with scale. At fine scales, local processes like competition and predation dominate. At broad scales, climate and disturbance regimes become more important. Scale-dependent relationships mean that conclusions drawn at one scale may not apply at another scale.
+
+Habitat Selection and Resource Distribution
+Animals select habitats based on resource availability, predation risk, and competition. The spatial distribution of resources creates a mosaic of habitat quality across landscapes. High-quality habitats (sources) can support breeding populations, while low-quality habitats (sinks) depend on immigration for persistence.
+
+Movement Ecology and Dispersal
+Animal movement patterns are influenced by landscape structure. Corridors facilitate movement, while barriers impede it. Movement behavior includes daily foraging movements, seasonal migrations, and natal dispersal. The scale of movement varies tremendously among species.
+
+Population Dynamics in Fragmented Landscapes
+Small, isolated populations face increased extinction risk due to demographic stochasticity, environmental stochasticity, and genetic drift. Metapopulation dynamics can rescue local populations through recolonization, but require sufficient connectivity between patches.
+
+Community Assembly and Species Interactions
+The assembly of ecological communities is influenced by local habitat conditions, regional species pools, and dispersal ability. Species interactions like competition, predation, and mutualism are modified by landscape structure and spatial context.
+
+Disturbance Ecology and Succession
+Disturbances create spatial and temporal heterogeneity in landscapes. The size, frequency, and intensity of disturbances influence succession trajectories. Intermediate disturbance can maintain higher diversity by preventing competitive exclusion.
+
+Ecosystem Services and Landscape Function
+Ecosystem services flow across landscapes and depend on spatial configuration. For example, pollination services depend on the proximity of natural habitats to agricultural areas. Water regulation services depend on watershed-scale patterns of land use.
+
+Conservation Planning Principles
+Effective conservation requires consideration of multiple spatial scales. Reserve networks should include large core areas, buffer zones, and connecting corridors. The complementarity principle suggests that reserves should be selected to maximize conservation of different species and habitats.
+
+Human Impacts and Land Use Change
+Human activities create novel landscape patterns and ecosystem types. Urbanization, agriculture, and resource extraction alter natural disturbance regimes and fragment habitats. Understanding these impacts is crucial for sustainable landscape management.
+
+Restoration Ecology at Landscape Scales
+Successful restoration requires understanding of reference conditions and restoration targets. Active restoration may be needed to overcome dispersal limitations and degraded site conditions. Restoration should consider landscape context and connectivity.
+"""
+
+    def _get_case_studies(self) -> str:
+        """Real case studies from landscape ecology research"""
+        return """
+Case Study Examples in Landscape Ecology
+
+Yellowstone Wolf Reintroduction
+The reintroduction of wolves to Yellowstone National Park in 1995 demonstrates landscape-scale trophic cascades. Wolves reduced elk populations and changed their behavior, leading to reduced browsing pressure on willows and aspens. This allowed riparian vegetation to recover, which stabilized stream banks and improved habitat for other species.
+
+Amazon Rainforest Fragmentation
+Research in the Amazon has shown that forest fragmentation creates strong edge effects that penetrate 100-300 meters into forest fragments. Small fragments lose many species, especially large mammals and understory birds. Fragments isolated for decades show continued species loss and simplified community structure.
+
+Prairie Restoration in Agricultural Landscapes  
+Studies in Iowa show that prairie restoration can increase biodiversity and ecosystem services when strategically placed in agricultural landscapes. Linear prairie strips along contours reduce soil erosion and provide habitat corridors for wildlife. Restored prairies also support pollinators that benefit nearby crops.
+
+Urban Wildlife Corridors
+Green corridors in cities facilitate movement of wildlife between parks and natural areas. Studies of urban coyotes show they use riparian corridors to navigate through developed areas. Urban corridors also provide ecosystem services like air quality improvement and stormwater management.
+
+Mountain Pine Beetle Outbreak
+Large-scale pine beetle outbreaks in western North America demonstrate how disturbance agents operate at landscape scales. Climate change has enabled beetles to expand their range and increase outbreak frequency. The resulting tree mortality creates complex patterns of dead and living trees across landscapes.
+
+Fire Management in Mediterranean Ecosystems
+Fire suppression in Mediterranean ecosystems has led to fuel accumulation and increased risk of large, severe fires. Prescribed burning and fuel reduction treatments are being used to restore natural fire regimes. The spatial pattern of treatments influences fire behavior and ecosystem response.
+
+Corridor Effectiveness for Large Carnivores
+Studies of mountain lions in southern California show that wildlife corridors and underpasses can maintain connectivity for large carnivores in fragmented landscapes. GPS collar data reveals how animals use corridors and avoid human development. Genetic studies confirm that corridors maintain gene flow between populations.
+
+Agricultural Landscape Biodiversity
+Research in European agricultural landscapes demonstrates the importance of hedgerows, field margins, and small woodlots for maintaining biodiversity. These landscape elements provide habitat for beneficial insects, birds, and small mammals. Agri-environment schemes pay farmers to maintain these features.
+
+Wetland Restoration and Water Quality
+Wetland restoration in agricultural watersheds improves water quality by filtering nutrients and sediments. The effectiveness of wetland restoration depends on their position in the landscape and connectivity to water sources. Strategic placement of wetlands maximizes water quality benefits.
+
+Climate Change and Species Range Shifts
+Studies of species range shifts document how climate change is causing species to move poleward and upward in elevation. The rate of range shift varies among species and depends on dispersal ability and landscape barriers. Climate corridors may facilitate range shifts.
+"""
+
+    def _get_research_examples(self) -> str:
+        """Research methodologies and examples"""
+        return """
+Research Methods in Landscape Ecology
+
+Remote Sensing Applications
+Satellite imagery and aerial photography are used to map land cover and track landscape changes over time. Landsat imagery provides 30-meter resolution data dating back to 1972. MODIS data provides daily coverage for monitoring seasonal changes and disturbances. LiDAR provides detailed information about vegetation structure and topography.
+
+Geographic Information Systems (GIS)
+GIS is used to analyze spatial patterns and relationships in landscapes. Common analyses include buffer analysis around habitat patches, overlay analysis of multiple map layers, and network analysis of habitat connectivity. Spatial statistics help identify patterns and test hypotheses about landscape structure.
+
+Landscape Metrics and Pattern Analysis
+Quantitative metrics describe landscape composition and configuration. Patch-based metrics include patch size, shape complexity, and isolation. Landscape-level metrics include diversity, evenness, and connectivity indices. Metrics must be interpreted carefully because they can be sensitive to data resolution and extent.
+
+Animal Tracking and Movement Analysis
+GPS collars and radio telemetry are used to track animal movements across landscapes. Movement data reveals habitat selection patterns, corridor use, and responses to landscape features. Step selection functions and resource selection functions quantify habitat preferences at different scales.
+
+Genetic Analysis of Landscape Connectivity
+Molecular markers reveal patterns of gene flow across landscapes. Landscape genetics combines genetic data with landscape maps to identify barriers and corridors to gene flow. Population genetic models estimate effective migration rates and identify landscape features that influence genetic structure.
+
+Experimental Manipulations
+Field experiments test hypotheses about landscape effects on ecological processes. Examples include creating experimental forest fragments of different sizes, manipulating corridor width and connectivity, and removing specific landscape features. Natural experiments take advantage of existing landscape patterns.
+
+Modeling and Simulation
+Computer models simulate ecological processes across landscapes. Spatially explicit population models project population viability under different landscape scenarios. Metapopulation models predict extinction and colonization dynamics. Landscape change models project future land use patterns.
+
+Multi-scale Sampling Designs
+Hierarchical sampling designs collect data at multiple spatial scales. Plots are nested within sites, which are nested within landscapes, which are nested within regions. This design allows partitioning of variation among scales and identification of scale-dependent relationships.
+
+Long-term Monitoring Programs
+Long-term studies track changes in landscape structure and ecological processes over decades. Examples include the Long Term Ecological Research (LTER) network and forest inventory plots. These studies reveal trends and cycles that are invisible at shorter time scales.
+
+Comparative Landscape Studies
+Comparing landscapes with different structures or histories provides insights into landscape effects. Examples include comparing fragmented versus continuous forests, landscapes with different disturbance histories, or regions with different land use practices. Space-for-time substitutions can reveal potential future changes.
+"""
+
+    def _get_real_world_applications(self) -> str:
+        """Practical applications and management examples"""
+        return """
+Real-World Applications of Landscape Ecology
+
+Conservation Corridor Planning
+Wildlife corridors connect protected areas and allow animals to move between habitats. The Yellowstone to Yukon Conservation Initiative protects a corridor over 3,000 km long for grizzly bears and other wide-ranging species. Corridors are designed based on species movement patterns and landscape resistance maps.
+
+Urban Green Infrastructure
+Cities are incorporating landscape ecological principles into urban planning. Green roofs and walls reduce urban heat islands and provide habitat. Urban forest networks connect parks and natural areas. Rain gardens and constructed wetlands manage stormwater runoff.
+
+Agricultural Landscape Management
+Sustainable agriculture integrates production with conservation goals. Agroforestry systems combine crops with trees to provide multiple benefits. Cover crops reduce erosion and improve soil health. Integrated pest management uses landscape patterns to control agricultural pests.
+
+Forest Management and Certification
+Sustainable forest management considers landscape-scale patterns and processes. Forest certification programs like FSC require maintenance of wildlife corridors and protection of old-growth forests. Ecosystem-based management considers multiple species and ecosystem services.
+
+Restoration Ecology Projects
+Large-scale restoration projects restore ecosystem function across landscapes. The Comprehensive Everglades Restoration Plan aims to restore water flow patterns across south Florida. Prairie restoration programs focus on connecting isolated remnants with new plantings.
+
+Climate Change Adaptation
+Landscape planning helps ecosystems adapt to climate change. Climate corridors facilitate species migration to new suitable habitats. Assisted migration programs help species move to appropriate climates. Protected area networks are being expanded to include climate refugia.
+
+Watershed Management
+Watershed-scale management protects water quality and quantity. Riparian buffers filter pollutants and reduce erosion. Wetland restoration improves water quality and flood control. Forest management influences hydrological cycles and stream temperatures.
+
+Fire Management Strategies
+Landscape fire management reduces wildfire risk and maintains fire-adapted ecosystems. Prescribed burning creates mosaics of different-aged vegetation. Fuel reduction treatments create strategic firebreaks. Community wildfire protection plans integrate fire management with land use planning.
+
+Invasive Species Management
+Landscape approaches to invasive species management focus on preventing spread and protecting high-value areas. Early detection and rapid response programs monitor for new invasions. Biological control agents are released at landscape scales. Native species restoration competes with invasives.
+
+Ecotourism and Recreation Planning
+Sustainable recreation planning balances human use with ecosystem protection. Trail systems are designed to minimize impacts on sensitive species and habitats. Visitor education programs promote understanding of landscape ecological principles. Recreation impacts are monitored and managed adaptively.
+
+Environmental Impact Assessment
+Environmental impact assessments evaluate project effects on landscape-scale patterns and processes. Cumulative effects assessment considers multiple projects across landscapes. Mitigation hierarchies require avoiding, minimizing, and offsetting impacts. Strategic environmental assessments plan for landscape-scale development.
+
+Payment for Ecosystem Services
+Economic incentives reward landowners for providing ecosystem services. Carbon offset programs pay for forest conservation and restoration. Water quality trading programs compensate for watershed protection. Biodiversity offset programs require developers to protect equivalent habitats elsewhere.
+"""
 
 class ArticleProcessor:
     def __init__(self):

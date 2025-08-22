@@ -125,9 +125,8 @@ class SocraticChatEngine:
     def _call_llm_api(self, messages: List[Dict[str, str]]) -> str:
         """Call open source LLM - try Llama2/Mistral via Hugging Face, then fallback to local system"""
         
-        # For now, use enhanced local system (more reliable than HF free tier)
-        # Future: Can add proper HF token or local model hosting
-        return self._generate_smart_socratic_response(messages)
+        # Try to use a more intelligent local system with enhanced context
+        return self._generate_intelligent_response(messages)
     
     def _format_messages_for_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Format conversation messages into a single prompt"""
@@ -385,6 +384,161 @@ class SocraticChatEngine:
         similarity = overlap / min(len(words1), len(words2))
         
         return similarity > 0.6
+    
+    def _generate_intelligent_response(self, messages: List[Dict[str, str]]) -> str:
+        """Generate more intelligent responses using enhanced knowledge and context"""
+        
+        # Get user message and context
+        if messages:
+            user_msg = messages[-1]["content"].lower()
+            conversation_length = len([m for m in messages if m["role"] == "user"])
+        else:
+            return "What aspects of this article would you like to explore?"
+        
+        # Extract key concepts from user message
+        concepts = self._extract_concepts_from_message(user_msg)
+        
+        # Get relevant knowledge from enhanced knowledge base
+        from components.rag_system import get_rag_system
+        rag_system = get_rag_system()
+        relevant_knowledge = rag_system.retrieve_relevant_knowledge(user_msg, top_k=3)
+        
+        # Generate contextually intelligent response
+        response = self._create_contextual_response(user_msg, concepts, relevant_knowledge, conversation_length)
+        
+        # Ensure response hasn't been used recently
+        recent_responses = [m["content"] for m in messages if m["role"] == "assistant"][-3:]
+        if any(self._responses_too_similar(response, prev) for prev in recent_responses):
+            # Generate alternative response
+            response = self._create_alternative_response(user_msg, concepts, conversation_length)
+        
+        return response
+    
+    def _extract_concepts_from_message(self, message: str) -> List[str]:
+        """Extract landscape ecology concepts from user message"""
+        concepts = []
+        
+        concept_mapping = {
+            # Scale concepts
+            'scale': ['scale', 'spatial', 'temporal', 'hierarchy', 'grain', 'extent'],
+            # Pattern concepts  
+            'pattern': ['pattern', 'heterogeneity', 'composition', 'configuration', 'structure'],
+            # Connectivity concepts
+            'connectivity': ['connectivity', 'corridor', 'fragmentation', 'isolation', 'movement'],
+            # Disturbance concepts
+            'disturbance': ['disturbance', 'fire', 'flood', 'storm', 'succession', 'recovery'],
+            # Population concepts
+            'population': ['population', 'metapopulation', 'migration', 'dispersal', 'colonization'],
+            # Habitat concepts
+            'habitat': ['habitat', 'patch', 'matrix', 'edge', 'interior', 'quality'],
+            # Methods concepts
+            'methods': ['method', 'sampling', 'analysis', 'data', 'gis', 'remote sensing'],
+            # Conservation concepts
+            'conservation': ['conservation', 'restoration', 'management', 'protected', 'reserve']
+        }
+        
+        for category, terms in concept_mapping.items():
+            if any(term in message for term in terms):
+                concepts.append(category)
+        
+        return concepts
+    
+    def _create_contextual_response(self, user_msg: str, concepts: List[str], knowledge: List[str], conv_length: int) -> str:
+        """Create intelligent contextual response"""
+        
+        responses = []
+        
+        # Generate concept-specific responses
+        if 'scale' in concepts:
+            if 'pattern' in concepts or 'process' in user_msg:
+                responses.extend([
+                    "Excellent question about scale! How do you think the relationship between pattern and process changes when you study this system at different scales?",
+                    "Scale is fundamental here. What patterns might be visible at a landscape scale that wouldn't be apparent if you only looked at individual patches?",
+                    "That's a key insight about scale. How might the processes that create these patterns differ between local and regional scales?"
+                ])
+            else:
+                responses.extend([
+                    "Scale is crucial in landscape ecology. What happens to your understanding of this system when you 'zoom out' to see the bigger picture?",
+                    "Interesting point about scale. How do you think the researchers chose their particular scale of observation, and what trade-offs did they make?"
+                ])
+        
+        if 'connectivity' in concepts:
+            if 'fragmentation' in user_msg:
+                responses.extend([
+                    "Great connection! How do you think increasing fragmentation affects the different ways organisms can move through this landscape?",
+                    "You're thinking about a key trade-off. As habitats become more fragmented, what strategies might different species use to maintain connectivity?",
+                    "That's an important relationship. Can you think of specific examples of how the organisms in this study might experience connectivity differently than the researchers measured it?"
+                ])
+            else:
+                responses.extend([
+                    "Connectivity is fascinating! What evidence would convince you that two patches are truly 'connected' for the organisms in this study?",
+                    "Good thinking about connectivity. How might functional connectivity (what organisms actually experience) differ from structural connectivity (what we see on maps)?"
+                ])
+        
+        if 'disturbance' in concepts:
+            responses.extend([
+                "Disturbance creates such interesting patterns! How do you think the timing and frequency of disturbances might influence what the researchers observed?",
+                "That's a great observation about disturbance. What role do you think disturbance history plays in creating the current landscape patterns?",
+                "Disturbances operate at multiple scales - how might local disturbances interact with landscape-scale disturbance regimes?"
+            ])
+        
+        if 'methods' in concepts:
+            responses.extend([
+                "Good question about methodology! What assumptions do you think the researchers made when they chose this approach?",
+                "Methods are so important. How might their results have differed if they had collected data at a different scale or resolution?",
+                "That's a thoughtful point about methods. What are the strengths and limitations of their approach for addressing their research question?"
+            ])
+        
+        # Add knowledge-informed responses if we have relevant knowledge
+        if knowledge:
+            knowledge_text = ' '.join(knowledge[:200].split())  # First 200 words
+            if 'source' in knowledge_text.lower() and 'sink' in knowledge_text.lower():
+                responses.append("I see you're exploring concepts related to source-sink dynamics. How might habitat quality vary across the landscape in this study?")
+            if 'metapopulation' in knowledge_text.lower():
+                responses.append("This connects to metapopulation theory. What evidence would you need to determine if the populations in this study function as a metapopulation?")
+        
+        # Add conversation-level appropriate responses
+        if conv_length <= 3:  # Early conversation
+            responses.extend([
+                "What assumptions might you be making as you think through this?",
+                "Can you walk me through the reasoning that led you to that conclusion?",
+                "What specific evidence from the article supports your thinking?"
+            ])
+        elif conv_length <= 8:  # Mid conversation  
+            responses.extend([
+                "How does this connect to broader landscape ecology principles?",
+                "What alternative explanations might account for what you're observing?",
+                "Can you think of a real-world management situation where this would be important?"
+            ])
+        else:  # Advanced conversation
+            responses.extend([
+                "What are the broader implications of this for conservation or management?",
+                "How confident are you in this interpretation? What additional data would strengthen your conclusion?",
+                "What questions does this raise for future research in landscape ecology?"
+            ])
+        
+        # Return a random response from available options
+        if responses:
+            import random
+            return random.choice(responses)
+        else:
+            return "That's an interesting perspective. How might you test that hypothesis using landscape ecological approaches?"
+    
+    def _create_alternative_response(self, user_msg: str, concepts: List[str], conv_length: int) -> str:
+        """Generate alternative response when primary response too similar to recent ones"""
+        alternatives = [
+            "Let me ask this differently - what would you expect to see if your hypothesis is correct?",
+            "That raises an interesting question. How might you approach this from a different angle?",
+            "What other factors might be important to consider in this system?",
+            "How might this relate to landscape ecology concepts beyond what we've already discussed?",
+            "What would happen if you changed one key assumption in your thinking?",
+            "Can you think of an analogous situation in a completely different type of landscape?",
+            "What questions does this raise about the generalizability of these findings?",
+            "How might different stakeholders (researchers, managers, policymakers) view this differently?"
+        ]
+        
+        import random
+        return random.choice(alternatives)
     
     def _get_level_guidance(self, level_name: str) -> str:
         """Get specific guidance for each conversation level"""
