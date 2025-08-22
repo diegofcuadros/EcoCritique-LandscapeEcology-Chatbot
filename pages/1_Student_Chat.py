@@ -4,6 +4,7 @@ from components.auth import is_authenticated, get_current_user
 from components.chat_engine import SocraticChatEngine, initialize_chat_session, add_message, get_chat_history, calculate_session_duration
 from components.rag_system import get_rag_system, get_article_processor
 from components.database import save_chat_session, get_articles
+from components.student_engagement import StudentEngagementSystem
 import PyPDF2
 import io
 
@@ -25,6 +26,7 @@ def main():
     chat_engine = SocraticChatEngine()
     rag_system = get_rag_system()
     article_processor = get_article_processor()
+    engagement_system = StudentEngagementSystem()
     
     # Initialize chat session
     initialize_chat_session()
@@ -39,6 +41,15 @@ def main():
         
         message_count = len(get_chat_history())
         st.markdown(f"**Messages:** {message_count}")
+        
+        # Show badges earned
+        progress = engagement_system.get_student_progress(user['id'])
+        if progress['badges_earned']:
+            st.markdown("**Badges Earned:**")
+            for badge_key in progress['badges_earned']:
+                if badge_key in engagement_system.achievement_badges:
+                    badge = engagement_system.achievement_badges[badge_key]
+                    st.markdown(f"{badge['icon']} {badge['name']}")
         
         st.divider()
         
@@ -88,10 +99,10 @@ def main():
             reset_chat_session()
     
     # Main chat interface
-    display_chat_interface(chat_engine, rag_system, article_processor, user)
+    display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system)
 
-def display_chat_interface(chat_engine, rag_system, article_processor, user):
-    """Display the main chat interface"""
+def display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system):
+    """Display the main chat interface with engagement features"""
     
     # Check if article is loaded
     current_article = st.session_state.get('current_article')
@@ -99,14 +110,37 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user):
         st.info("👆 Please select and load an article from the sidebar to begin the discussion.")
         return
     
-    # Article info
-    with st.expander("📄 Current Article", expanded=False):
-        st.markdown(f"**Title:** {current_article['title']}")
-        st.markdown(f"**Summary:** {st.session_state.get('article_summary', 'No summary available')}")
-        
+    # Display engagement features at the top
+    message_count = len(get_chat_history())
+    
+    # Progress indicator and achievements
+    with st.container():
+        engagement_system.display_progress_indicator(user['id'], message_count)
+    
+    st.divider()
+    
+    # Article info and concept map
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        with st.expander("📄 Current Article", expanded=False):
+            st.markdown(f"**Title:** {current_article['title']}")
+            st.markdown(f"**Summary:** {st.session_state.get('article_summary', 'No summary available')}")
+            
+            key_concepts = st.session_state.get('key_concepts', [])
+            if key_concepts:
+                st.markdown(f"**Key Concepts:** {', '.join(key_concepts)}")
+    
+    with col2:
+        # Concept map
         key_concepts = st.session_state.get('key_concepts', [])
-        if key_concepts:
-            st.markdown(f"**Key Concepts:** {', '.join(key_concepts)}")
+        engagement_system.display_concept_map(user['id'], current_article['title'], key_concepts)
+    
+    st.divider()
+    
+    # Peer insights section
+    with st.expander("💭 Peer Insights - Learn from Fellow Students", expanded=False):
+        engagement_system.display_peer_insights(current_article['title'])
     
     st.divider()
     
@@ -161,6 +195,16 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user):
         
         # Add bot response
         add_message("assistant", bot_response)
+        
+        # Check if the user's question is high quality for peer insights
+        if engagement_system.check_question_quality(user_input, get_chat_history()):
+            # Determine cognitive level based on message count
+            level = min(4, 1 + (message_count // 2))
+            engagement_system.save_peer_insight(user_input, current_article['title'], level)
+        
+        # Update student progress with concepts
+        key_concepts = st.session_state.get('key_concepts', [])
+        engagement_system.update_progress(user['id'], len(get_chat_history()), key_concepts)
         
         # Auto-save session periodically
         if len(get_chat_history()) % 4 == 0:  # Save every 4 messages

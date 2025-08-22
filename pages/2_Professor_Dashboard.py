@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sqlite3
+import json
 from datetime import datetime, timedelta
 from components.auth import is_authenticated, get_current_user
 from components.database import get_student_analytics, get_chat_sessions, get_chat_messages, export_interactions_csv
@@ -73,6 +75,72 @@ def display_overview_metrics():
             "Total Sessions",
             analytics['total_sessions'],
             help="Total number of chat sessions completed"
+        )
+    
+    # Add engagement metrics section
+    st.markdown("### 🎯 Student Engagement Metrics")
+    
+    # Get engagement statistics from database
+    conn = sqlite3.connect('data/chatbot_interactions.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Count students with badges
+        cursor.execute("""SELECT COUNT(*) FROM student_progress WHERE badges_earned != '[]'""")
+        result = cursor.fetchone()
+        students_with_badges = result[0] if result else 0
+        
+        # Count peer insights
+        cursor.execute("SELECT COUNT(*) FROM peer_insights")
+        result = cursor.fetchone()
+        total_insights = result[0] if result else 0
+        
+        # Average cognitive level
+        cursor.execute("SELECT AVG(current_level) FROM student_progress WHERE current_level > 0")
+        result = cursor.fetchone()
+        avg_level = result[0] if result and result[0] else 1.0
+        
+        # Count students exploring concepts
+        cursor.execute("SELECT COUNT(*) FROM student_progress WHERE concepts_explored != '[]'")
+        result = cursor.fetchone()
+        students_with_concepts = result[0] if result else 0
+        
+    except Exception as e:
+        students_with_badges = 0
+        total_insights = 0
+        avg_level = 1.0
+        students_with_concepts = 0
+    finally:
+        conn.close()
+    
+    eng_col1, eng_col2, eng_col3, eng_col4 = st.columns(4)
+    
+    with eng_col1:
+        st.metric(
+            "Students with Badges",
+            students_with_badges,
+            help="Students who earned at least one achievement badge"
+        )
+    
+    with eng_col2:
+        st.metric(
+            "Peer Insights Shared",
+            total_insights,
+            help="Quality questions shared for peer learning"
+        )
+    
+    with eng_col3:
+        st.metric(
+            "Avg Cognitive Level",
+            f"{avg_level:.1f}/4",
+            help="Average depth of student cognitive engagement"
+        )
+    
+    with eng_col4:
+        st.metric(
+            "Concept Explorers",
+            students_with_concepts,
+            help="Students actively connecting multiple concepts"
         )
 
 def display_analytics_charts():
