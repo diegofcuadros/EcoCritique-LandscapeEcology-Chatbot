@@ -36,17 +36,42 @@ class StudentEngagementSystem:
         conn = sqlite3.connect('data/chatbot_interactions.db')
         cursor = conn.cursor()
         
-        # Student progress tracking
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS student_progress (
-                student_id TEXT PRIMARY KEY,
-                current_level INTEGER DEFAULT 1,
-                total_interactions INTEGER DEFAULT 0,
-                badges_earned TEXT DEFAULT '[]',
-                concepts_explored TEXT DEFAULT '[]',
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        # Check if student_progress table exists with correct schema
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='student_progress'")
+        table_exists = cursor.fetchone()
+        
+        if table_exists:
+            # Check if it has the correct columns
+            cursor.execute("PRAGMA table_info(student_progress)")
+            columns = cursor.fetchall()
+            column_names = [col[1] for col in columns]
+            
+            # If missing required columns, drop and recreate
+            required_columns = ['student_id', 'current_level', 'total_interactions', 'badges_earned', 'concepts_explored']
+            if not all(col in column_names for col in required_columns):
+                cursor.execute("DROP TABLE IF EXISTS student_progress")
+                cursor.execute("""
+                    CREATE TABLE student_progress (
+                        student_id TEXT PRIMARY KEY,
+                        current_level INTEGER DEFAULT 1,
+                        total_interactions INTEGER DEFAULT 0,
+                        badges_earned TEXT DEFAULT '[]',
+                        concepts_explored TEXT DEFAULT '[]',
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+        else:
+            # Create the table
+            cursor.execute("""
+                CREATE TABLE student_progress (
+                    student_id TEXT PRIMARY KEY,
+                    current_level INTEGER DEFAULT 1,
+                    total_interactions INTEGER DEFAULT 0,
+                    badges_earned TEXT DEFAULT '[]',
+                    concepts_explored TEXT DEFAULT '[]',
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
         
         # Peer insights - best questions
         cursor.execute("""
