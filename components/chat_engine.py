@@ -125,12 +125,9 @@ class SocraticChatEngine:
     def _call_llm_api(self, messages: List[Dict[str, str]]) -> str:
         """Call open source LLM - try Llama2/Mistral via Hugging Face, then fallback to local system"""
         
-        # Try open source models first
-        try:
-            return self._call_open_source_llm(messages)
-        except Exception as e:
-            # Use enhanced local Socratic system as fallback
-            return self._generate_smart_socratic_response(messages)
+        # For now, use enhanced local system (more reliable than HF free tier)
+        # Future: Can add proper HF token or local model hosting
+        return self._generate_smart_socratic_response(messages)
     
     def _format_messages_for_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Format conversation messages into a single prompt"""
@@ -170,7 +167,7 @@ class SocraticChatEngine:
         api_url = f"https://api-inference.huggingface.co/models/{model_name}"
         
         headers = {
-            "Authorization": "Bearer hf_demo_key",  # Use demo access
+            "Authorization": "Bearer hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",  # Demo token
         }
         
         payload = {
@@ -282,26 +279,20 @@ class SocraticChatEngine:
         found_landscape = any(term in user_msg for term in landscape_terms)
         found_research = any(term in user_msg for term in research_terms)
         
-        # Generate contextual response based on conversation level and content
-        if conversation_length <= 2:  # Comprehension level
-            if found_landscape or found_research:
-                return f"I see you're thinking about {self._extract_key_term(user_msg, landscape_terms + research_terms)}. What specific details from the article support your understanding of this concept?"
-            else:
-                return "What was the main question the researchers were trying to answer in this study?"
-                
-        elif conversation_length <= 6:  # Analysis level
-            if found_landscape:
-                return f"That's good insight about {self._extract_key_term(user_msg, landscape_terms)}. Why do you think the researchers focused on this particular aspect? What patterns do you notice?"
-            elif found_research:
-                return "You're analyzing the methodology well. What do you think influenced the researchers' choice of approach? How might this affect their results?"
-            else:
-                return "What relationships do you see between the variables they studied? What patterns emerge from their data?"
-                
-        elif conversation_length <= 10:  # Synthesis level  
-            return "How does this finding connect to the broader principles of landscape ecology we've discussed? Can you think of similar patterns in other systems?"
-            
-        else:  # Evaluation level
-            return "What assumptions might the researchers be making that aren't explicitly stated? How could this study be improved or extended?"
+        # Check for recent repetition to avoid giving same response
+        recent_responses = [m["content"] for m in messages if m["role"] == "assistant"][-3:]
+        
+        # Generate diverse contextual responses
+        responses_pool = self._get_diverse_responses(user_msg, conversation_length, found_landscape, found_research)
+        
+        # Filter out recently used responses
+        available_responses = [r for r in responses_pool if not any(self._responses_too_similar(r, prev) for prev in recent_responses)]
+        
+        if not available_responses:
+            available_responses = responses_pool  # Use all if none available
+        
+        import random
+        return random.choice(available_responses)
     
     def _extract_key_term(self, text: str, terms: List[str]) -> str:
         """Extract the first matching key term from text"""
@@ -309,6 +300,91 @@ class SocraticChatEngine:
             if term in text:
                 return term
         return "this concept"
+    
+    def _get_diverse_responses(self, user_msg: str, conversation_length: int, found_landscape: bool, found_research: bool) -> List[str]:
+        """Generate diverse pool of responses based on context"""
+        responses = []
+        
+        # Scale-specific responses (since user mentioned scales)
+        if "scale" in user_msg:
+            responses.extend([
+                "Interesting point about scale! How do you think the scale of observation might affect what patterns you can detect?",
+                "Scale is crucial in landscape ecology. What happens when you zoom in versus zoom out on this system?",
+                "You're thinking about scale - how do you think the researchers chose their particular scale of study?",
+                "What trade-offs do you see between studying this at a fine scale versus a broad scale?"
+            ])
+        
+        # Connectivity/fragmentation specific responses
+        if any(term in user_msg for term in ["connectivity", "fragmentation", "patch", "corridor"]):
+            responses.extend([
+                "That's a key landscape concept! How do you think connectivity changes as fragmentation increases?",
+                "What evidence would you look for to measure connectivity in this landscape?",
+                "How might different species experience connectivity differently in this system?",
+                "What factors do you think influence how fragments connect to each other?"
+            ])
+        
+        # Pattern-process responses
+        if any(term in user_msg for term in ["pattern", "process", "relationship"]):
+            responses.extend([
+                "Excellent - you're thinking about pattern-process relationships! Can you give a specific example from the article?",
+                "How do you think patterns at one scale might influence processes at another scale?",
+                "What mechanisms might create the patterns described in this study?",
+                "Do you see any feedback loops between patterns and processes here?"
+            ])
+        
+        # General responses based on conversation level
+        if conversation_length <= 2:  # Early conversation
+            responses.extend([
+                "What assumptions are you making as you think about this?",
+                "Can you walk me through your reasoning here?",
+                "What evidence from your reading supports that idea?",
+                "How would you test that hypothesis?"
+            ])
+        elif conversation_length <= 6:  # Mid conversation
+            responses.extend([
+                "That raises an interesting question - what alternative explanations might there be?",
+                "How does this connect to other landscape ecology principles you know?",
+                "What would you expect to see if your thinking is correct?",
+                "Can you think of a real-world example that demonstrates this?"
+            ])
+        else:  # Advanced conversation
+            responses.extend([
+                "What are the broader implications of what you're describing?",
+                "How might this knowledge influence conservation strategies?",
+                "What questions does this raise for future research?",
+                "How confident are you in this interpretation, and why?"
+            ])
+        
+        # Ensure we have enough responses
+        if len(responses) < 3:
+            responses.extend([
+                "What makes you think that? Can you elaborate on your reasoning?",
+                "That's an interesting perspective. How might you investigate that further?",
+                "What other factors might be important to consider here?",
+                "Can you connect this to any landscape ecology concepts we've discussed?"
+            ])
+        
+        return responses
+    
+    def _responses_too_similar(self, response1: str, response2: str) -> bool:
+        """Check if two responses are too similar (simple similarity check)"""
+        if not response1 or not response2:
+            return False
+        
+        # Remove common words and compare key content
+        common_words = {"what", "how", "why", "do", "you", "think", "that", "the", "this", "a", "an", "is", "are", "can", "might", "would"}
+        
+        words1 = set(response1.lower().split()) - common_words
+        words2 = set(response2.lower().split()) - common_words
+        
+        # If more than 60% of content words overlap, consider similar
+        if len(words1) == 0 or len(words2) == 0:
+            return False
+            
+        overlap = len(words1.intersection(words2))
+        similarity = overlap / min(len(words1), len(words2))
+        
+        return similarity > 0.6
     
     def _get_level_guidance(self, level_name: str) -> str:
         """Get specific guidance for each conversation level"""
