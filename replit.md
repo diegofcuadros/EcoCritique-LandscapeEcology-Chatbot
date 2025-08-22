@@ -29,14 +29,16 @@ Preferred communication style: Simple, everyday language.
 - **JSON Configuration**: Socratic prompts and system configuration stored in structured JSON files
 
 ### AI Integration
-- **OpenAI GPT Integration**: Uses OpenAI API (specifically gpt-4o model) for generating Socratic responses and educational guidance
+- **Groq API with Llama 3**: Uses Groq's free API with Llama-3.1-8b-instant model for generating authentic Socratic responses  
 - **Sentence Transformers**: Local embedding model (all-MiniLM-L6-v2) for semantic similarity and knowledge base retrieval
 - **Progressive Learning Logic**: Multi-level conversation system that adapts questioning complexity based on student progress
+- **Multi-tier fallback system**: Groq primary, Together AI secondary, intelligent local system as final fallback
 
 ## External Dependencies
 
 ### AI Services
-- **OpenAI API**: Primary language model for Socratic dialogue generation (requires OPENAI_API_KEY environment variable)
+- **Groq API**: Primary language model using Llama 3 for Socratic dialogue generation (requires GROQ_API_KEY environment variable)
+- **Together AI**: Secondary fallback for open-source models (optional)
 - **Hugging Face Transformers**: Sentence transformer models for local embedding generation and semantic search
 
 ### Python Libraries
@@ -55,6 +57,7 @@ Preferred communication style: Simple, everyday language.
 - **Local Database**: SQLite database for persistent storage of all interactions and metadata
 
 ### Deployment Requirements
-- **Environment Variables**: Requires OPENAI_API_KEY for AI functionality
+- **Environment Variables**: Requires GROQ_API_KEY for AI functionality (free tier available)
 - **File System Access**: Needs write permissions for database, article storage, and embedding cache
 - **Python 3.8+**: Compatible with modern Python versions supporting all listed dependencies
+- **Port 5000**: Frontend server bound to 0.0.0.0:5000 for web access
