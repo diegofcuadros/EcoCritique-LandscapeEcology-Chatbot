@@ -626,30 +626,30 @@ Always respond with 1-2 engaging questions that help the student explore the con
                     "content": msg["content"]
                 })
             
-            # Try free LLM API services that don't require signup
-            # First try a free service (many have been discontinued, so this will likely fail)
-            # That's okay - we'll fall back to our enhanced local system
-            response = None
+            # Use real Groq API with Llama 3
+            import os
+            groq_api_key = os.environ.get('GROQ_API_KEY')
             
-            # This is a placeholder for when you get a real API key
-            if False:  # Set to True when you have a real Groq API key
+            if groq_api_key:
                 response = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={
-                        "Authorization": "Bearer YOUR_REAL_GROQ_API_KEY_HERE",
+                        "Authorization": f"Bearer {groq_api_key}",
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": "llama-3.1-8b-instant",
+                        "model": "llama-3.1-8b-instant",  # Fast, high-quality Llama 3.1 model
                         "messages": api_messages,
                         "temperature": 0.7,
-                        "max_tokens": 200,
+                        "max_tokens": 300,  # Increased for more detailed responses
                         "stream": False
                     },
-                    timeout=10
+                    timeout=15
                 )
+            else:
+                response = None
             
-            if response.status_code == 200:
+            if response and response.status_code == 200:
                 result = response.json()
                 if "choices" in result and len(result["choices"]) > 0:
                     generated_text = result["choices"][0]["message"]["content"].strip()
