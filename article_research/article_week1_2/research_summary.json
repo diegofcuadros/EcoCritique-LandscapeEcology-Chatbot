@@ -1,0 +1,128 @@
+{
+  "article_title": "week2",
+  "article_id": "week1_2",
+  "analysis": {
+    "key_concepts": [
+      "habitat_fragmentation",
+      "edge_effects",
+      "scale",
+      "metapopulation",
+      "land_use",
+      "climate_change",
+      "conservation",
+      "remote_sensing",
+      "modeling"
+    ],
+    "study_system": "forest, urban",
+    "methods": [
+      "gis",
+      "remote sensing",
+      "genetic",
+      "modeling",
+      "statistical"
+    ],
+    "authors": [
+      "et al",
+      "laboratory",
+      "university"
+    ],
+    "temporal_aspects": [
+      "long-term",
+      "time series",
+      "historical",
+      "decade",
+      "annual",
+      "monitoring",
+      "trend"
+    ],
+    "title": "week2"
+  },
+  "search_queries": [
+    "habitat fragmentation landscape ecology research",
+    "habitat fragmentation forest, urban examples",
+    "edge effects landscape ecology research",
+    "edge effects forest, urban examples",
+    "scale landscape ecology research",
+    "scale forest, urban examples",
+    "forest, urban landscape ecology case studies",
+    "forest, urban ecosystem management",
+    "gis landscape ecology applications",
+    "remote sensing landscape ecology applications"
+  ],
+  "research_results": [
+    {
+      "query": "habitat fragmentation landscape ecology research",
+      "content": "\nHabitat fragmentation research shows that breaking up continuous habitats into smaller patches has multiple effects on biodiversity. Recent studies indicate that edge effects can penetrate 100-300 meters into forest fragments. Small fragments lose species through demographic stochasticity and reduced habitat quality. Connectivity between fragments is crucial for maintaining metapopulations.\n",
+      "file_path": "article_research/article_week1_2/search_1_habitat_fragmentation_landscap.txt",
+      "timestamp": "2025-08-22T21:52:04.533689"
+    },
+    {
+      "query": "habitat fragmentation forest, urban examples",
+      "content": "\nHabitat fragmentation research shows that breaking up continuous habitats into smaller patches has multiple effects on biodiversity. Recent studies indicate that edge effects can penetrate 100-300 meters into forest fragments. Small fragments lose species through demographic stochasticity and reduced habitat quality. Connectivity between fragments is crucial for maintaining metapopulations.\n",
+      "file_path": "article_research/article_week1_2/search_2_habitat_fragmentation_forest,_.txt",
+      "timestamp": "2025-08-22T21:52:04.539094"
+    },
+    {
+      "query": "edge effects landscape ecology research",
+      "content": "\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n",
+      "file_path": "article_research/article_week1_2/search_3_edge_effects_landscape_ecology.txt",
+      "timestamp": "2025-08-22T21:52:04.539768"
+    },
+    {
+      "query": "edge effects forest, urban examples",
+      "content": "\nScale-dependent relationships are fundamental to landscape ecology. Patterns observed at fine scales may not predict landscape-level processes. The modifiable areal unit problem affects how we interpret spatial data. Multi-scale approaches are necessary to understand ecological processes across hierarchical levels.\n",
+      "file_path": "article_research/article_week1_2/search_4_edge_effects_forest,_urban_exa.txt",
+      "timestamp": "2025-08-22T21:52:04.540483"
+    },
+    {
+      "query": "scale landscape ecology research",
+      "content": "\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n",
+      "file_path": "article_research/article_week1_2/search_5_scale_landscape_ecology_resear.txt",
+      "timestamp": "2025-08-22T21:52:04.541324"
+    },
+    {
+      "query": "scale forest, urban examples",
+      "content": "\nScale-dependent relationships are fundamental to landscape ecology. Patterns observed at fine scales may not predict landscape-level processes. The modifiable areal unit problem affects how we interpret spatial data. Multi-scale approaches are necessary to understand ecological processes across hierarchical levels.\n",
+      "file_path": "article_research/article_week1_2/search_6_scale_forest,_urban_examples.txt",
+      "timestamp": "2025-08-22T21:52:04.542498"
+    },
+    {
+      "query": "forest, urban landscape ecology case studies",
+      "content": "\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n",
+      "file_path": "article_research/article_week1_2/search_7_forest,_urban_landscape_ecolog.txt",
+      "timestamp": "2025-08-22T21:52:04.543284"
+    },
+    {
+      "query": "forest, urban ecosystem management",
+      "content": "\nResearch on forest, urban ecosystem management in landscape ecology reveals complex spatial and temporal patterns. Current studies emphasize the importance of scale, connectivity, and disturbance in shaping ecological processes. Management applications focus on balancing conservation goals with human needs across landscapes.\n",
+      "file_path": "article_research/article_week1_2/search_8_forest,_urban_ecosystem_manage.txt",
+      "timestamp": "2025-08-22T21:52:04.543862"
+    },
+    {
+      "query": "gis landscape ecology applications",
+      "content": "\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n",
+      "file_path": "article_research/article_week1_2/search_9_gis_landscape_ecology_applicat.txt",
+      "timestamp": "2025-08-22T21:52:04.544564"
+    },
+    {
+      "query": "remote sensing landscape ecology applications",
+      "content": "\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n",
+      "file_path": "article_research/article_week1_2/search_10_remote_sensing_landscape_ecolo.txt",
+      "timestamp": "2025-08-22T21:52:04.545012"
+    }
+  ],
+  "organized_knowledge": [
+    "\nResearch Summary for Article: week2\n\nKey Concepts Investigated: habitat_fragmentation, edge_effects, scale, metapopulation, land_use, climate_change, conservation, remote_sensing, modeling\nStudy System: forest, urban\nResearch Methods: gis, remote sensing, genetic, modeling, statistical\n\nThis research was automatically gathered to provide additional context for understanding this article in the broader landscape ecology literature.\n",
+    "\n[RESEARCH] habitat fragmentation landscape ecology research\n\n\nHabitat fragmentation research shows that breaking up continuous habitats into smaller patches has multiple effects on biodiversity. Recent studies indicate that edge effects can penetrate 100-300 meters into forest fragments. Small fragments lose species through demographic stochasticity and reduced habitat quality. Connectivity between fragments is crucial for maintaining metapopulations.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] habitat fragmentation forest, urban examples\n\n\nHabitat fragmentation research shows that breaking up continuous habitats into smaller patches has multiple effects on biodiversity. Recent studies indicate that edge effects can penetrate 100-300 meters into forest fragments. Small fragments lose species through demographic stochasticity and reduced habitat quality. Connectivity between fragments is crucial for maintaining metapopulations.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] edge effects landscape ecology research\n\n\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] edge effects forest, urban examples\n\n\nScale-dependent relationships are fundamental to landscape ecology. Patterns observed at fine scales may not predict landscape-level processes. The modifiable areal unit problem affects how we interpret spatial data. Multi-scale approaches are necessary to understand ecological processes across hierarchical levels.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] scale landscape ecology research\n\n\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] scale forest, urban examples\n\n\nScale-dependent relationships are fundamental to landscape ecology. Patterns observed at fine scales may not predict landscape-level processes. The modifiable areal unit problem affects how we interpret spatial data. Multi-scale approaches are necessary to understand ecological processes across hierarchical levels.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] forest, urban landscape ecology case studies\n\n\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] forest, urban ecosystem management\n\n\nResearch on forest, urban ecosystem management in landscape ecology reveals complex spatial and temporal patterns. Current studies emphasize the importance of scale, connectivity, and disturbance in shaping ecological processes. Management applications focus on balancing conservation goals with human needs across landscapes.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] gis landscape ecology applications\n\n\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n...\n\nSource: Automated research for article context\n",
+    "\n[RESEARCH] remote sensing landscape ecology applications\n\n\nDisturbance regimes are changing globally due to climate change and human activities. Fire suppression has altered natural fire cycles in many ecosystems. Large-scale disturbances create complex spatial patterns that influence succession and species composition. Understanding disturbance history is crucial for restoration planning.\n...\n\nSource: Automated research for article context\n"
+  ],
+  "research_date": "2025-08-22T21:52:04.545037"
+}

@@ -1,0 +1,7 @@
+Query: scale forest, urban examples
+
+Results:
+
+Scale-dependent relationships are fundamental to landscape ecology. Patterns observed at fine scales may not predict landscape-level processes. The modifiable areal unit problem affects how we interpret spatial data. Multi-scale approaches are necessary to understand ecological processes across hierarchical levels.
+
+

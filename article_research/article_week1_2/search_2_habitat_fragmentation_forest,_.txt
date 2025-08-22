@@ -1,0 +1,7 @@
+Query: habitat fragmentation forest, urban examples
+
+Results:
+
+Habitat fragmentation research shows that breaking up continuous habitats into smaller patches has multiple effects on biodiversity. Recent studies indicate that edge effects can penetrate 100-300 meters into forest fragments. Small fragments lose species through demographic stochasticity and reduced habitat quality. Connectivity between fragments is crucial for maintaining metapopulations.
+
+
