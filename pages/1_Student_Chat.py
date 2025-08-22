@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime
 from components.auth import is_authenticated, get_current_user
 from components.chat_engine import SocraticChatEngine, initialize_chat_session, add_message, get_chat_history, calculate_session_duration
 from components.rag_system import get_rag_system, get_article_processor
@@ -176,6 +177,10 @@ def save_current_session(user, chat_engine, auto_save=False):
         return
     
     session_id = st.session_state.get('chat_session_id')
+    if not session_id:
+        session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        st.session_state.chat_session_id = session_id
+    
     article_title = st.session_state.get('current_article', {}).get('title', 'Unknown Article')
     duration = calculate_session_duration()
     max_level = chat_engine.get_conversation_level(messages)

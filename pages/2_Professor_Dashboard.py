@@ -94,15 +94,17 @@ def display_analytics_charts():
         return
     
     # Convert timestamps
-    student_sessions['start_time'] = pd.to_datetime(student_sessions['start_time'])
-    student_sessions['date'] = student_sessions['start_time'].dt.date
+    if len(student_sessions) > 0:
+        student_sessions = student_sessions.copy()  # Make a copy to avoid warnings
+        student_sessions['start_time'] = pd.to_datetime(student_sessions['start_time'])
+        student_sessions['date'] = pd.to_datetime(student_sessions['start_time']).dt.date
     
     # Row 1: Time-based charts
     col1, col2 = st.columns(2)
     
     with col1:
         # Sessions per day
-        daily_sessions = student_sessions.groupby('date').size().reset_index(name='sessions')
+        daily_sessions = student_sessions.groupby('date').size().reset_index().rename(columns={0: 'sessions'})
         
         fig_daily = px.line(
             daily_sessions, 
@@ -131,31 +133,37 @@ def display_analytics_charts():
     
     with col3:
         # Max level reached distribution
-        level_counts = student_sessions['max_level_reached'].value_counts().sort_index()
-        
-        fig_levels = px.bar(
-            x=level_counts.index,
-            y=level_counts.values,
-            title="Conversation Depth Distribution",
-            labels={'x': 'Max Level Reached', 'y': 'Number of Sessions'}
-        )
-        fig_levels.update_layout(xaxis=dict(tickmode='linear'))
-        fig_levels.update_layout(height=300)
-        st.plotly_chart(fig_levels, use_container_width=True)
+        if len(student_sessions) > 0:
+            level_counts = pd.Series(student_sessions['max_level_reached']).value_counts().sort_index()
+            
+            fig_levels = px.bar(
+                x=level_counts.index,
+                y=level_counts.values,
+                title="Conversation Depth Distribution",
+                labels={'x': 'Max Level Reached', 'y': 'Number of Sessions'}
+            )
+            fig_levels.update_layout(xaxis=dict(tickmode='linear'))
+            fig_levels.update_layout(height=300)
+            st.plotly_chart(fig_levels, use_container_width=True)
+        else:
+            st.info("No data available")
     
     with col4:
         # Articles discussion frequency
-        article_counts = student_sessions['article_title'].value_counts().head(10)
-        
-        fig_articles = px.bar(
-            x=article_counts.values,
-            y=article_counts.index,
-            orientation='h',
-            title="Most Discussed Articles",
-            labels={'x': 'Number of Sessions', 'y': 'Article'}
-        )
-        fig_articles.update_layout(height=300)
-        st.plotly_chart(fig_articles, use_container_width=True)
+        if len(student_sessions) > 0:
+            article_counts = pd.Series(student_sessions['article_title']).value_counts().head(10)
+            
+            fig_articles = px.bar(
+                x=article_counts.values,
+                y=article_counts.index,
+                orientation='h',
+                title="Most Discussed Articles",
+                labels={'x': 'Number of Sessions', 'y': 'Article'}
+            )
+            fig_articles.update_layout(height=300)
+            st.plotly_chart(fig_articles, use_container_width=True)
+        else:
+            st.info("No data available")
 
 def display_student_sessions():
     """Display student sessions table with filtering"""
@@ -194,25 +202,27 @@ def display_student_sessions():
         # Apply filters
         filtered_df = sessions_df[sessions_df['user_type'] == 'Student'].copy()
         
-        # Date filter
-        filtered_df['start_time'] = pd.to_datetime(filtered_df['start_time'])
-        filtered_df = filtered_df[filtered_df['start_time'].dt.date >= date_filter]
-        
-        # Duration filter
-        filtered_df = filtered_df[filtered_df['duration_minutes'] >= min_duration]
-        
-        # Article filter
-        if article_filter:
-            filtered_df = filtered_df[
-                filtered_df['article_title'].str.contains(article_filter, case=False, na=False)
-            ]
+        if len(filtered_df) > 0:
+            # Date filter
+            filtered_df['start_time'] = pd.to_datetime(filtered_df['start_time'])
+            filtered_df = filtered_df[pd.to_datetime(filtered_df['start_time']).dt.date >= date_filter]
+            
+            # Duration filter  
+            filtered_df = filtered_df[pd.to_numeric(filtered_df['duration_minutes'], errors='coerce') >= min_duration]
+            
+            # Article filter
+            if article_filter:
+                article_series = pd.Series(filtered_df['article_title'])
+                mask = article_series.str.contains(article_filter, case=False, na=False)
+                filtered_df = filtered_df[mask]
         
         # Display table
         if not filtered_df.empty:
             # Format for display
             display_df = filtered_df.copy()
-            display_df['start_time'] = display_df['start_time'].dt.strftime('%Y-%m-%d %H:%M')
-            display_df['duration_minutes'] = display_df['duration_minutes'].round(1)
+            if len(display_df) > 0:
+                display_df['start_time'] = pd.to_datetime(display_df['start_time']).dt.strftime('%Y-%m-%d %H:%M')
+                display_df['duration_minutes'] = pd.to_numeric(display_df['duration_minutes'], errors='coerce').round(1)
             
             # Select columns for display
             columns_to_show = [
@@ -268,7 +278,13 @@ def display_chat_transcripts():
         session_id = session_options[selected_session_name]
         
         # Get session details
-        session_info = student_sessions[student_sessions['session_id'] == session_id].iloc[0]
+        session_mask = pd.Series(student_sessions['session_id']) == session_id
+        matching_sessions = student_sessions[session_mask]
+        if len(matching_sessions) > 0:
+            session_info = matching_sessions.iloc[0]
+        else:
+            st.error("Session not found")
+            return
         
         # Display session info
         col1, col2, col3, col4 = st.columns(4)
@@ -363,9 +379,11 @@ def display_export_options():
                 
                 else:  # Excel
                     from io import BytesIO
+                    import pandas as pd
                     buffer = BytesIO()
                     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                         export_df.to_excel(writer, sheet_name='Student_Interactions', index=False)
+                    buffer.seek(0)
                     
                     st.download_button(
                         label="📥 Download Excel",

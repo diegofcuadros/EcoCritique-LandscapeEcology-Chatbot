@@ -84,7 +84,7 @@ class ArticleResearchAgent:
             'title': title
         }
     
-    def _intelligent_article_analysis(self, content: str, title: str) -> Dict[str, Any]:
+    def _intelligent_article_analysis(self, content: str, title: str) -> Dict[str, Any] | None:
         """Use Groq API to intelligently analyze the article"""
         try:
             import requests
@@ -147,7 +147,7 @@ Focus on concepts that would benefit from additional research and context for st
         except Exception as e:
             return None
     
-    def _parse_analysis_response(self, response_text: str) -> Dict[str, Any]:
+    def _parse_analysis_response(self, response_text: str) -> Dict[str, Any] | None:
         """Parse the structured response from Groq analysis"""
         try:
             analysis = {

@@ -227,25 +227,33 @@ def display_article_management():
     
     # Add action buttons to dataframe display
     for idx, article in articles_df.iterrows():
-        with st.expander(f"Week {article['week_number']}: {article['title']}", expanded=False):
+        week_num = str(article['week_number'])
+        article_title = str(article['title'])
+        upload_date = str(article['upload_date'])[:16]
+        file_path = str(article['file_path'])
+        is_active = bool(article['is_active'])
+        objectives = str(article.get('learning_objectives', '')) if article.get('learning_objectives') else ''
+        concepts = str(article.get('key_concepts', '')) if article.get('key_concepts') else ''
+        
+        with st.expander(f"Week {week_num}: {article_title}", expanded=False):
             col1, col2, col3 = st.columns([2, 1, 1])
             
             with col1:
-                st.markdown(f"**Upload Date:** {article['upload_date'][:16]}")
-                st.markdown(f"**File:** {os.path.basename(article['file_path'])}")
-                st.markdown(f"**Status:** {'Active' if article['is_active'] else 'Inactive'}")
+                st.markdown(f"**Upload Date:** {upload_date}")
+                st.markdown(f"**File:** {os.path.basename(file_path)}")
+                st.markdown(f"**Status:** {'Active' if is_active else 'Inactive'}")
                 
-                if article['learning_objectives']:
+                if objectives:
                     st.markdown(f"**Learning Objectives:**")
-                    st.markdown(article['learning_objectives'])
+                    st.markdown(objectives)
                 
-                if article['key_concepts']:
+                if concepts:
                     st.markdown(f"**Key Concepts:**")
-                    st.markdown(article['key_concepts'])
+                    st.markdown(concepts)
             
             with col2:
                 # Toggle active status
-                current_status = bool(article['is_active'])
+                current_status = is_active
                 new_status = st.checkbox(
                     "Active",
                     value=current_status,
@@ -264,7 +272,7 @@ def display_article_management():
                     key=f"delete_{article['id']}",
                     help="Permanently delete this article"
                 ):
-                    delete_article(article['id'], article['file_path'])
+                    delete_article(article['id'], file_path)
                     st.rerun()
 
 def update_article_status(article_id, is_active):

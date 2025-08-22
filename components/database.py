@@ -88,14 +88,17 @@ def save_chat_session(session_id: str, user_id: str, user_type: str,
              duration_minutes, message_count, max_level_reached)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            session_id, user_id, user_type, article_title,
+            session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
+            user_id or "unknown_user", 
+            user_type, 
+            article_title,
             messages[0]["timestamp"] if messages else datetime.now().isoformat(),
             messages[-1]["timestamp"] if messages else datetime.now().isoformat(),
             duration_minutes, len(messages), max_level
         ))
         
         # Clear existing messages for this session
-        cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+        cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",))
         
         # Insert messages
         for i, message in enumerate(messages):
@@ -104,7 +107,8 @@ def save_chat_session(session_id: str, user_id: str, user_type: str,
                 (session_id, role, content, timestamp, message_order)
                 VALUES (?, ?, ?, ?, ?)
             """, (
-                session_id, message["role"], message["content"], 
+                session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
+                message["role"], message["content"], 
                 message["timestamp"], i
             ))
         
@@ -117,7 +121,7 @@ def save_chat_session(session_id: str, user_id: str, user_type: str,
     finally:
         conn.close()
 
-def get_chat_sessions(user_id: str = None, limit: int = 100) -> pd.DataFrame:
+def get_chat_sessions(user_id: str | None = None, limit: int = 100) -> pd.DataFrame:
     """Retrieve chat sessions from database"""
     conn = sqlite3.connect(DATABASE_PATH)
     
@@ -265,7 +269,7 @@ def get_student_analytics() -> Dict[str, Any]:
     finally:
         conn.close()
 
-def export_interactions_csv(start_date: str = None, end_date: str = None) -> pd.DataFrame:
+def export_interactions_csv(start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
     """Export chat interactions to CSV format"""
     conn = sqlite3.connect(DATABASE_PATH)
     
