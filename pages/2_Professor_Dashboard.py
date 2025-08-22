@@ -85,6 +85,32 @@ def display_overview_metrics():
     cursor = conn.cursor()
     
     try:
+        # First ensure tables exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS student_progress (
+                student_id TEXT PRIMARY KEY,
+                current_level INTEGER DEFAULT 1,
+                total_interactions INTEGER DEFAULT 0,
+                badges_earned TEXT DEFAULT '[]',
+                concepts_explored TEXT DEFAULT '[]',
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS peer_insights (
+                insight_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question TEXT NOT NULL,
+                article_title TEXT,
+                cognitive_level INTEGER,
+                upvotes INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_featured BOOLEAN DEFAULT 0
+            )
+        """)
+        
+        conn.commit()
+        
         # Count students with badges
         cursor.execute("""SELECT COUNT(*) FROM student_progress WHERE badges_earned != '[]'""")
         result = cursor.fetchone()

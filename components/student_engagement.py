@@ -79,17 +79,31 @@ class StudentEngagementSystem:
     
     def get_student_progress(self, student_id: str) -> Dict[str, Any]:
         """Get current progress for a student"""
+        # Ensure tables exist
+        self.initialize_engagement_tables()
+        
         conn = sqlite3.connect('data/chatbot_interactions.db')
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT current_level, total_interactions, badges_earned, concepts_explored
-            FROM student_progress
-            WHERE student_id = ?
-        """, (student_id,))
-        
-        result = cursor.fetchone()
-        conn.close()
+        try:
+            cursor.execute("""
+                SELECT current_level, total_interactions, badges_earned, concepts_explored
+                FROM student_progress
+                WHERE student_id = ?
+            """, (student_id,))
+            
+            result = cursor.fetchone()
+        except sqlite3.OperationalError:
+            # Table doesn't exist, create it and retry
+            self.initialize_engagement_tables()
+            cursor.execute("""
+                SELECT current_level, total_interactions, badges_earned, concepts_explored
+                FROM student_progress
+                WHERE student_id = ?
+            """, (student_id,))
+            result = cursor.fetchone()
+        finally:
+            conn.close()
         
         if result:
             return {
