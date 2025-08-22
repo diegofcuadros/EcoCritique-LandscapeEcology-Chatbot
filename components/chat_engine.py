@@ -114,54 +114,31 @@ class SocraticChatEngine:
         messages.append({"role": "user", "content": user_message})
         
         try:
-            # Use Hugging Face's free inference API with Llama or similar open model
-            response = self._call_huggingface_api(messages)
+            # Try LLM API (OpenAI if available, smart local otherwise)
+            response = self._call_llm_api(messages)
             return response
             
         except Exception as e:
             st.error(f"Error generating response: {str(e)}")
             return "I'm having trouble processing that. Could you try rephrasing your question?"
     
-    def _call_huggingface_api(self, messages: List[Dict[str, str]]) -> str:
-        """Call Hugging Face Inference API with open source model"""
+    def _call_llm_api(self, messages: List[Dict[str, str]]) -> str:
+        """Call LLM API - first try OpenAI if available, then fallback to smart local responses"""
         
-        # Format messages into a single prompt for the model
-        prompt = self._format_messages_for_prompt(messages)
-        
-        # Use Microsoft's DialoGPT or similar open model
-        api_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
-        
-        headers = {
-            "Authorization": "Bearer hf_placeholder",  # No key needed for free inference
-        }
-        
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_length": 300,
-                "temperature": 0.7,
-                "do_sample": True
-            },
-            "options": {
-                "wait_for_model": True
-            }
-        }
-        
-        try:
-            response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        # Try OpenAI first if API key is available
+        openai_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, 'secrets') else None
+        if not openai_key:
+            import os
+            openai_key = os.environ.get("OPENAI_API_KEY")
             
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0:
-                    return result[0].get("generated_text", "I need more information to help you.")
-                else:
-                    return "Let me think about that differently. What specific aspect interests you most?"
-            else:
-                # Fallback to local processing if API fails
-                return self._generate_fallback_response(messages)
-                
-        except Exception as e:
-            return self._generate_fallback_response(messages)
+        if openai_key:
+            try:
+                return self._call_openai_api(messages, openai_key)
+            except Exception as e:
+                st.warning("OpenAI API unavailable, using local Socratic system")
+        
+        # Use enhanced local Socratic system
+        return self._generate_smart_socratic_response(messages)
     
     def _format_messages_for_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Format conversation messages into a single prompt"""
@@ -172,23 +149,76 @@ class SocraticChatEngine:
         prompt += "Assistant:"
         return prompt
     
-    def _generate_fallback_response(self, messages: List[Dict[str, str]]) -> str:
-        """Generate a fallback Socratic response when API fails"""
-        fallback_responses = [
-            "That's an interesting point. What evidence from the article supports that idea?",
-            "Good observation! How do you think this connects to landscape ecology principles?",
-            "What patterns are you noticing in the data or methodology?",
-            "Can you explain your reasoning behind that conclusion?",
-            "How might this finding apply to other landscape types or systems?",
-            "What questions does this research raise for you?",
-            "What do you think the implications of this study might be?",
-            "How does this relate to what we've discussed about spatial patterns?",
-            "What methodology choices do you think influenced these results?",
-            "Can you identify any assumptions the researchers might be making?"
+    def _call_openai_api(self, messages: List[Dict[str, str]], api_key: str) -> str:
+        """Call OpenAI API for high-quality Socratic responses"""
+        try:
+            import openai
+            client = openai.OpenAI(api_key=api_key)
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+                messages=messages,
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            raise e  # Re-raise to trigger fallback
+    
+    def _generate_smart_socratic_response(self, messages: List[Dict[str, str]]) -> str:
+        """Generate intelligent Socratic responses based on conversation context"""
+        
+        # Get last user message and conversation context
+        if messages:
+            user_msg = messages[-1]["content"].lower()
+            conversation_length = len([m for m in messages if m["role"] == "user"])
+        else:
+            return "What aspects of this article would you like to explore?"
+        
+        # Analyze user message for key concepts
+        landscape_terms = [
+            "habitat", "fragmentation", "connectivity", "patch", "corridor", 
+            "edge", "scale", "heterogeneity", "disturbance", "metapopulation",
+            "spatial", "pattern", "process", "landscape", "ecology"
         ]
         
-        import random
-        return random.choice(fallback_responses)
+        research_terms = [
+            "method", "data", "result", "finding", "hypothesis", "conclusion",
+            "analysis", "study", "research", "experiment", "observation"
+        ]
+        
+        found_landscape = any(term in user_msg for term in landscape_terms)
+        found_research = any(term in user_msg for term in research_terms)
+        
+        # Generate contextual response based on conversation level and content
+        if conversation_length <= 2:  # Comprehension level
+            if found_landscape or found_research:
+                return f"I see you're thinking about {self._extract_key_term(user_msg, landscape_terms + research_terms)}. What specific details from the article support your understanding of this concept?"
+            else:
+                return "What was the main question the researchers were trying to answer in this study?"
+                
+        elif conversation_length <= 6:  # Analysis level
+            if found_landscape:
+                return f"That's good insight about {self._extract_key_term(user_msg, landscape_terms)}. Why do you think the researchers focused on this particular aspect? What patterns do you notice?"
+            elif found_research:
+                return "You're analyzing the methodology well. What do you think influenced the researchers' choice of approach? How might this affect their results?"
+            else:
+                return "What relationships do you see between the variables they studied? What patterns emerge from their data?"
+                
+        elif conversation_length <= 10:  # Synthesis level  
+            return "How does this finding connect to the broader principles of landscape ecology we've discussed? Can you think of similar patterns in other systems?"
+            
+        else:  # Evaluation level
+            return "What assumptions might the researchers be making that aren't explicitly stated? How could this study be improved or extended?"
+    
+    def _extract_key_term(self, text: str, terms: List[str]) -> str:
+        """Extract the first matching key term from text"""
+        for term in terms:
+            if term in text:
+                return term
+        return "this concept"
     
     def _get_level_guidance(self, level_name: str) -> str:
         """Get specific guidance for each conversation level"""
