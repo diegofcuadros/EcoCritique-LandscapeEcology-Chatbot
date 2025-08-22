@@ -123,22 +123,14 @@ class SocraticChatEngine:
             return "I'm having trouble processing that. Could you try rephrasing your question?"
     
     def _call_llm_api(self, messages: List[Dict[str, str]]) -> str:
-        """Call LLM API - first try OpenAI if available, then fallback to smart local responses"""
+        """Call open source LLM - try Llama2/Mistral via Hugging Face, then fallback to local system"""
         
-        # Try OpenAI first if API key is available
-        openai_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, 'secrets') else None
-        if not openai_key:
-            import os
-            openai_key = os.environ.get("OPENAI_API_KEY")
-            
-        if openai_key:
-            try:
-                return self._call_openai_api(messages, openai_key)
-            except Exception as e:
-                st.warning("OpenAI API unavailable, using local Socratic system")
-        
-        # Use enhanced local Socratic system
-        return self._generate_smart_socratic_response(messages)
+        # Try open source models first
+        try:
+            return self._call_open_source_llm(messages)
+        except Exception as e:
+            # Use enhanced local Socratic system as fallback
+            return self._generate_smart_socratic_response(messages)
     
     def _format_messages_for_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Format conversation messages into a single prompt"""
@@ -149,23 +141,121 @@ class SocraticChatEngine:
         prompt += "Assistant:"
         return prompt
     
-    def _call_openai_api(self, messages: List[Dict[str, str]], api_key: str) -> str:
-        """Call OpenAI API for high-quality Socratic responses"""
-        try:
-            import openai
-            client = openai.OpenAI(api_key=api_key)
+    def _call_open_source_llm(self, messages: List[Dict[str, str]]) -> str:
+        """Call open source LLM via Hugging Face Inference API"""
+        
+        # Convert messages to proper format for the model
+        prompt = self._format_messages_for_llm(messages)
+        
+        # Try multiple open source models in order of preference
+        models_to_try = [
+            "meta-llama/Llama-2-7b-chat-hf",  # Llama2 Chat
+            "mistralai/Mistral-7B-Instruct-v0.1",  # Mistral Instruct
+            "microsoft/DialoGPT-large",  # DialoGPT (fallback)
+        ]
+        
+        for model_name in models_to_try:
+            try:
+                response = self._query_huggingface_model(model_name, prompt)
+                if response and len(response.strip()) > 10:  # Valid response
+                    return self._clean_model_response(response)
+            except Exception as e:
+                continue  # Try next model
+        
+        # If all models fail, raise exception to trigger local fallback
+        raise Exception("All open source models unavailable")
+    
+    def _query_huggingface_model(self, model_name: str, prompt: str) -> str:
+        """Query a specific Hugging Face model"""
+        api_url = f"https://api-inference.huggingface.co/models/{model_name}"
+        
+        headers = {
+            "Authorization": "Bearer hf_demo_key",  # Use demo access
+        }
+        
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 200,
+                "temperature": 0.7,
+                "do_sample": True,
+                "return_full_text": False
+            },
+            "options": {
+                "wait_for_model": True,
+                "use_cache": False
+            }
+        }
+        
+        response = requests.post(api_url, headers=headers, json=payload, timeout=25)
+        
+        if response.status_code == 200:
+            result = response.json()
             
-            response = client.chat.completions.create(
-                model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-                messages=messages,
-                max_tokens=300,
-                temperature=0.7
-            )
-            
-            return response.choices[0].message.content
-            
-        except Exception as e:
-            raise e  # Re-raise to trigger fallback
+            if isinstance(result, list) and len(result) > 0:
+                return result[0].get("generated_text", "")
+            elif isinstance(result, dict):
+                return result.get("generated_text", "")
+        
+        raise Exception(f"Model {model_name} returned status {response.status_code}")
+    
+    def _format_messages_for_llm(self, messages: List[Dict[str, str]]) -> str:
+        """Format conversation for open source LLM models"""
+        
+        # Get the system message (first message)
+        system_msg = ""
+        conversation = []
+        
+        for msg in messages:
+            if msg["role"] == "system":
+                system_msg = msg["content"]
+            else:
+                conversation.append(msg)
+        
+        # Format for Llama2/Mistral chat format
+        prompt = f"<s>[INST] {system_msg}\n\n"
+        
+        # Add conversation history (keep it manageable)
+        recent_conversation = conversation[-6:] if len(conversation) > 6 else conversation
+        
+        for i, msg in enumerate(recent_conversation[:-1]):  # All but the last message
+            if msg["role"] == "user":
+                prompt += f"Student: {msg['content']}\n"
+            else:
+                prompt += f"Tutor: {msg['content']}\n"
+        
+        # Add the current user message
+        if recent_conversation:
+            last_msg = recent_conversation[-1]
+            prompt += f"\nStudent: {last_msg['content']}\n\nRespond as a Socratic tutor who guides through questions, never gives direct answers: [/INST]"
+        
+        return prompt
+    
+    def _clean_model_response(self, response: str) -> str:
+        """Clean and format the model response"""
+        # Remove common artifacts from model responses
+        cleaned = response.strip()
+        
+        # Remove potential repetition or artifacts
+        lines = cleaned.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith(('Student:', 'Tutor:', 'Human:', 'Assistant:')):
+                cleaned_lines.append(line)
+        
+        result = ' '.join(cleaned_lines)
+        
+        # Ensure it's a reasonable length
+        if len(result) > 400:
+            result = result[:400] + "..."
+        
+        # Make sure it ends with a question mark if it's supposed to be a question
+        if result and not result.endswith(('?', '.', '!', '...')):
+            result += "?"
+        
+        return result if result else "What aspects of this research would you like to explore further?"
     
     def _generate_smart_socratic_response(self, messages: List[Dict[str, str]]) -> str:
         """Generate intelligent Socratic responses based on conversation context"""
