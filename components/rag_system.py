@@ -149,6 +149,11 @@ class LandscapeEcologyRAG:
         # Rebuild search index
         self._build_search_index()
     
+    def update_embeddings(self):
+        """Update embeddings for improved search (rebuilds index)"""
+        self._build_search_index()
+        return True
+    
     def _get_textbook_knowledge(self) -> str:
         """Comprehensive textbook-style landscape ecology knowledge"""
         return """
