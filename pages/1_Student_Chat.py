@@ -5,6 +5,7 @@ from components.chat_engine import SocraticChatEngine, initialize_chat_session, 
 from components.rag_system import get_rag_system, get_article_processor
 from components.database import save_chat_session, get_articles
 from components.student_engagement import StudentEngagementSystem
+from components.assessment_quality import AssessmentQualitySystem
 import PyPDF2
 import io
 
@@ -27,6 +28,7 @@ def main():
     rag_system = get_rag_system()
     article_processor = get_article_processor()
     engagement_system = StudentEngagementSystem()
+    assessment_system = AssessmentQualitySystem()
     
     # Initialize chat session
     initialize_chat_session()
@@ -195,6 +197,41 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         
         # Add bot response
         add_message("assistant", bot_response)
+        
+        # Track message quality for assessment
+        quality_metrics = assessment_system.calculate_message_quality(user_input)
+        
+        # Store quality metrics in database
+        import sqlite3
+        conn = sqlite3.connect('data/chatbot_interactions.db')
+        cursor = conn.cursor()
+        
+        # Ensure quality_metrics table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quality_metrics (
+                metric_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id TEXT NOT NULL,
+                message_id INTEGER,
+                thoughtfulness_score REAL,
+                critical_thinking_present BOOLEAN,
+                synthesis_present BOOLEAN,
+                word_count INTEGER,
+                question_complexity INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            INSERT INTO quality_metrics 
+            (student_id, message_id, thoughtfulness_score, critical_thinking_present,
+             synthesis_present, word_count, question_complexity)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user['id'], len(get_chat_history()), quality_metrics['thoughtfulness_score'],
+              quality_metrics['critical_thinking_present'], quality_metrics['synthesis_present'],
+              quality_metrics['word_count'], quality_metrics['question_complexity']))
+        
+        conn.commit()
+        conn.close()
         
         # Check if the user's question is high quality for peer insights
         if engagement_system.check_question_quality(user_input, get_chat_history()):

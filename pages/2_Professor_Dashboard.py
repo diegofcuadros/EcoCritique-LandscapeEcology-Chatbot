@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timedelta
 from components.auth import is_authenticated, get_current_user
 from components.database import get_student_analytics, get_chat_sessions, get_chat_messages, export_interactions_csv
+from components.assessment_quality import AssessmentQualitySystem
 
 st.set_page_config(page_title="Professor Dashboard", page_icon="📊", layout="wide")
 
@@ -22,12 +23,22 @@ def main():
         st.error("This page is only accessible to professors.")
         st.stop()
     
+    # Initialize assessment system
+    assessment_system = AssessmentQualitySystem()
+    
     # Main dashboard layout
     display_overview_metrics()
     st.divider()
     
     # Tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Analytics", "👥 Student Sessions", "💬 Chat Transcripts", "📥 Export Data"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📈 Analytics", 
+        "👥 Student Sessions", 
+        "💬 Chat Transcripts", 
+        "🎯 Assessment Quality",
+        "📅 Weekly Reports",
+        "📥 Export Data"
+    ])
     
     with tab1:
         display_analytics_charts()
@@ -39,6 +50,12 @@ def main():
         display_chat_transcripts()
     
     with tab4:
+        display_assessment_quality(assessment_system)
+    
+    with tab5:
+        display_weekly_reports(assessment_system)
+    
+    with tab6:
         display_export_options()
 
 def display_overview_metrics():
@@ -493,6 +510,221 @@ def display_export_options():
                 
             else:
                 st.warning("No data found for the selected date range.")
+
+def display_assessment_quality(assessment_system):
+    """Display automated assessment and rubric scoring"""
+    st.markdown("### 🎯 Automated Assessment Quality")
+    st.markdown("View automated rubric scoring and participation quality metrics for student engagement")
+    
+    # Class overview
+    st.markdown("#### Class Assessment Overview")
+    class_df = assessment_system.get_class_assessment_overview()
+    
+    if not class_df.empty:
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Students Assessed", len(class_df))
+        with col2:
+            st.metric("Avg Class Score", f"{class_df['avg_score'].mean():.1f}%")
+        with col3:
+            st.metric("Highest Avg Score", f"{class_df['avg_score'].max():.1f}%")
+        with col4:
+            st.metric("Lowest Avg Score", f"{class_df['avg_score'].min():.1f}%")
+        
+        # Display class data
+        st.dataframe(
+            class_df[['student_id', 'sessions_evaluated', 'avg_score', 'grades']],
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Rubric criteria comparison
+        st.markdown("#### Rubric Criteria Performance")
+        
+        criteria_cols = ['avg_depth', 'avg_integration', 'avg_questions', 'avg_consistency', 'avg_progression']
+        criteria_names = ['Depth of Analysis', 'Concept Integration', 'Question Quality', 'Engagement Consistency', 'Cognitive Progression']
+        
+        fig = go.Figure()
+        for i, (col, name) in enumerate(zip(criteria_cols, criteria_names)):
+            fig.add_trace(go.Box(
+                y=class_df[col],
+                name=name,
+                boxmean='sd'
+            ))
+        
+        fig.update_layout(
+            title="Class Performance by Rubric Criteria",
+            yaxis_title="Score (%)",
+            showlegend=False,
+            height=400
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No assessment data available yet. Assessments are generated after students complete sessions.")
+    
+    # Individual student assessment
+    st.markdown("#### Individual Student Assessment")
+    
+    conn = sqlite3.connect('data/chatbot_interactions.db')
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT cs.user_id, cs.session_id, cs.article_title, cs.timestamp
+        FROM chat_sessions cs
+        ORDER BY cs.timestamp DESC
+        LIMIT 20
+    """)
+    recent_sessions = cursor.fetchall()
+    conn.close()
+    
+    if recent_sessions:
+        session_options = [
+            f"{row[0]} - {row[2][:30]}... ({datetime.fromisoformat(row[3]).strftime('%Y-%m-%d')})"
+            for row in recent_sessions
+        ]
+        
+        selected_session = st.selectbox(
+            "Select a session to evaluate:",
+            options=range(len(recent_sessions)),
+            format_func=lambda x: session_options[x]
+        )
+        
+        if st.button("Generate Rubric Evaluation"):
+            student_id = recent_sessions[selected_session][0]
+            session_id = recent_sessions[selected_session][1]
+            
+            with st.spinner("Evaluating session..."):
+                assessment_system.display_rubric_evaluation(student_id, session_id)
+                
+                # Also show quality metrics
+                st.divider()
+                assessment_system.display_quality_metrics(student_id)
+    else:
+        st.info("No sessions available for evaluation")
+
+def display_weekly_reports(assessment_system):
+    """Display weekly progress reports for students"""
+    st.markdown("### 📅 Weekly Progress Reports")
+    st.markdown("Automated weekly summaries of student development and engagement")
+    
+    # Report generation options
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Select student
+        conn = sqlite3.connect('data/chatbot_interactions.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT user_id FROM chat_sessions ORDER BY user_id")
+        students = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        if students:
+            selected_student = st.selectbox(
+                "Select Student:",
+                options=["All Students"] + students,
+                help="Choose a student to view their weekly reports"
+            )
+        else:
+            selected_student = None
+            st.info("No students found in the system")
+    
+    with col2:
+        # Select week
+        week_start = st.date_input(
+            "Week Starting:",
+            value=datetime.now().date() - timedelta(days=datetime.now().weekday()),
+            help="Select the Monday of the week to generate report"
+        )
+    
+    if selected_student and selected_student != "All Students":
+        # Generate and display individual report
+        if st.button("Generate Weekly Report", use_container_width=True):
+            with st.spinner("Generating report..."):
+                assessment_system.display_weekly_reports(selected_student)
+    elif selected_student == "All Students":
+        # Display all reports
+        assessment_system.display_weekly_reports()
+    
+    # Batch report generation
+    st.divider()
+    st.markdown("#### Batch Report Generation")
+    
+    if st.button("Generate Reports for All Students (Current Week)", use_container_width=True):
+        with st.spinner("Generating reports for all students..."):
+            week_start_dt = datetime.now() - timedelta(days=datetime.now().weekday())
+            week_start_dt = week_start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            success_count = 0
+            error_count = 0
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, student_id in enumerate(students):
+                try:
+                    report = assessment_system.generate_weekly_report(student_id, week_start_dt)
+                    if "error" not in report:
+                        success_count += 1
+                    else:
+                        error_count += 1
+                except:
+                    error_count += 1
+                
+                progress = (i + 1) / len(students)
+                progress_bar.progress(progress)
+                status_text.text(f"Processing {i + 1}/{len(students)} students...")
+            
+            progress_bar.empty()
+            status_text.empty()
+            
+            st.success(f"✅ Generated {success_count} reports successfully")
+            if error_count > 0:
+                st.warning(f"⚠️ {error_count} students had insufficient data for reports")
+    
+    # Export weekly reports
+    st.divider()
+    st.markdown("#### Export Weekly Reports")
+    
+    if st.button("Export All Weekly Reports to Excel", use_container_width=True):
+        conn = sqlite3.connect('data/chatbot_interactions.db')
+        query = """
+            SELECT 
+                student_id,
+                week_start,
+                week_end,
+                sessions_completed,
+                avg_quality_score,
+                cognitive_progress,
+                strengths,
+                areas_for_improvement
+            FROM weekly_reports
+            ORDER BY week_start DESC, student_id
+        """
+        
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+        
+        if not df.empty:
+            # Prepare Excel export
+            from io import BytesIO
+            buffer = BytesIO()
+            
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Weekly_Reports', index=False)
+            
+            buffer.seek(0)
+            
+            st.download_button(
+                label="📥 Download Weekly Reports (Excel)",
+                data=buffer.getvalue(),
+                file_name=f"weekly_reports_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+            st.success(f"Export ready! Contains {len(df)} weekly reports.")
+        else:
+            st.warning("No weekly reports available for export")
 
 if __name__ == "__main__":
     main()
