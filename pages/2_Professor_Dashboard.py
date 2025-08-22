@@ -139,7 +139,7 @@ def display_analytics_charts():
             title="Conversation Depth Distribution",
             labels={'x': 'Max Level Reached', 'y': 'Number of Sessions'}
         )
-        fig_levels.update_xaxis(tickmode='linear')
+        fig_levels.update_layout(xaxis=dict(tickmode='linear'))
         fig_levels.update_layout(height=300)
         st.plotly_chart(fig_levels, use_container_width=True)
     
