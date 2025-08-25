@@ -249,7 +249,7 @@ class GradingExportSystem:
                 
                 if not messages_df.empty:
                     # Separate student and AI messages
-                    student_messages = messages_df[messages_df['role'] == 'user']
+                    student_messages = messages_df[messages_df['role'] == 'student']
                     ai_messages = messages_df[messages_df['role'] == 'assistant']
                     
                     # Analyze message quality
@@ -392,7 +392,7 @@ class GradingExportSystem:
         
         conversation = []
         for _, msg in sample_messages.iterrows():
-            role = "Student" if msg['role'] == 'user' else "AI"
+            role = "Student" if msg['role'] == 'student' else "AI"
             content = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
             conversation.append(f"{role}: {content}")
         

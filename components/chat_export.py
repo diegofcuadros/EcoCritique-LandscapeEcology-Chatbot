@@ -169,7 +169,7 @@ class ChatExportSystem:
         transcript.append("\n### Conversation\n")
         
         for role, content, timestamp in messages:
-            if role == 'user':
+            if role == 'student':
                 transcript.append(f"**🧑‍🎓 Student:** {content}\n")
             else:
                 transcript.append(f"**🤖 AI Tutor:** {content}\n")
@@ -192,7 +192,7 @@ class ChatExportSystem:
         transcript.append("-" * 40)
         
         for role, content, timestamp in messages:
-            if role == 'user':
+            if role == 'student':
                 transcript.append(f"\nSTUDENT: {content}")
             else:
                 transcript.append(f"\nAI TUTOR: {content}")
