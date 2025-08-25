@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from components.auth import initialize_auth, check_authentication
 from components.database import initialize_database
+from components.database_init import initialize_database as init_all_tables
 
 # Page configuration
 st.set_page_config(
@@ -39,6 +40,7 @@ st.markdown("""
 def main():
     # Initialize database and authentication
     initialize_database()
+    init_all_tables()  # Ensure all tables exist with correct schema
     initialize_auth()
     
     # Main header

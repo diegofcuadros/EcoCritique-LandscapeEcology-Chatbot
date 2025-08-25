@@ -440,7 +440,7 @@ def display_chat_transcripts():
             for i, message in enumerate(messages):
                 timestamp = pd.to_datetime(message['timestamp']).strftime('%H:%M:%S')
                 
-                if message['role'] == 'student':
+                if message['role'] == 'user':
                     st.markdown(f"**🧑‍🎓 Student** _{timestamp}_")
                     st.info(message['content'])
                 else:
