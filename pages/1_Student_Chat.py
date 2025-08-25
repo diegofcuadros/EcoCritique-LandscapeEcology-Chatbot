@@ -101,9 +101,9 @@ def main():
             reset_chat_session()
     
     # Main chat interface
-    display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system)
+    display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system, assessment_system)
 
-def display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system):
+def display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system, assessment_system):
     """Display the main chat interface with engagement features"""
     
     # Check if article is loaded
