@@ -14,7 +14,7 @@ class AssessmentQualitySystem:
     def __init__(self):
         self.rubric_criteria = {
             "depth_of_analysis": {
-                "weight": 0.25,
+                "weight": 0.20,
                 "levels": {
                     "excellent": {"min_score": 90, "description": "Demonstrates critical thinking with original insights"},
                     "good": {"min_score": 75, "description": "Shows solid understanding with some analysis"},
@@ -23,7 +23,7 @@ class AssessmentQualitySystem:
                 }
             },
             "concept_integration": {
-                "weight": 0.20,
+                "weight": 0.15,
                 "levels": {
                     "excellent": {"min_score": 90, "description": "Connects multiple concepts across articles"},
                     "good": {"min_score": 75, "description": "Makes connections within the article"},
@@ -32,7 +32,7 @@ class AssessmentQualitySystem:
                 }
             },
             "question_quality": {
-                "weight": 0.20,
+                "weight": 0.15,
                 "levels": {
                     "excellent": {"min_score": 90, "description": "Asks probing, thoughtful questions"},
                     "good": {"min_score": 75, "description": "Asks relevant clarifying questions"},
@@ -41,7 +41,7 @@ class AssessmentQualitySystem:
                 }
             },
             "engagement_consistency": {
-                "weight": 0.20,
+                "weight": 0.15,
                 "levels": {
                     "excellent": {"min_score": 90, "description": "Sustained, focused engagement throughout"},
                     "good": {"min_score": 75, "description": "Mostly consistent participation"},
@@ -56,6 +56,15 @@ class AssessmentQualitySystem:
                     "good": {"min_score": 75, "description": "Achieves synthesis level"},
                     "satisfactory": {"min_score": 60, "description": "Demonstrates analysis"},
                     "needs_improvement": {"min_score": 0, "description": "Remains at comprehension level"}
+                }
+            },
+            "spatial_reasoning": {
+                "weight": 0.20,
+                "levels": {
+                    "excellent": {"min_score": 90, "description": "Demonstrates sophisticated spatial thinking and GIS understanding"},
+                    "good": {"min_score": 75, "description": "Shows solid grasp of spatial concepts and scale effects"},
+                    "satisfactory": {"min_score": 60, "description": "Basic understanding of spatial patterns"},
+                    "needs_improvement": {"min_score": 0, "description": "Limited spatial reasoning evident"}
                 }
             }
         }
@@ -73,6 +82,24 @@ class AssessmentQualitySystem:
             "depth_indicators": [
                 "because", "evidence", "example", "specifically", "in particular",
                 "for instance", "such as", "considering", "given that", "assuming"
+            ],
+            "spatial_reasoning_keywords": [
+                "scale", "resolution", "extent", "grain", "spatial", "pattern",
+                "distribution", "connectivity", "fragmentation", "proximity",
+                "distance", "buffer", "overlay", "network", "hierarchy",
+                "neighborhood", "clustering", "autocorrelation", "hotspot"
+            ],
+            "gis_methods_keywords": [
+                "gis", "remote sensing", "satellite", "landsat", "modis", "lidar",
+                "aerial", "mapping", "digitize", "georeferenced", "projection",
+                "coordinate", "vector", "raster", "topology", "database",
+                "query", "spatial analysis", "interpolation", "classification"
+            ],
+            "landscape_metrics_keywords": [
+                "patch size", "edge density", "shape index", "connectivity index",
+                "fragmentation index", "landscape metric", "contagion",
+                "diversity index", "evenness", "dominance", "aggregation",
+                "proximity index", "core area", "edge to area ratio"
             ]
         }
         
@@ -136,7 +163,7 @@ class AssessmentQualitySystem:
         conn.close()
     
     def calculate_message_quality(self, message: str) -> Dict[str, Any]:
-        """Analyze individual message quality"""
+        """Analyze individual message quality including spatial reasoning"""
         message_lower = message.lower()
         
         # Calculate various quality metrics
@@ -160,6 +187,27 @@ class AssessmentQualitySystem:
             if keyword in message_lower
         ) / len(self.quality_indicators["depth_indicators"])
         
+        # Check for spatial reasoning
+        spatial_reasoning_score = sum(
+            1 for keyword in self.quality_indicators["spatial_reasoning_keywords"]
+            if keyword in message_lower
+        ) / len(self.quality_indicators["spatial_reasoning_keywords"])
+        
+        # Check for GIS methods understanding
+        gis_methods_score = sum(
+            1 for keyword in self.quality_indicators["gis_methods_keywords"]
+            if keyword in message_lower
+        ) / len(self.quality_indicators["gis_methods_keywords"])
+        
+        # Check for landscape metrics understanding
+        landscape_metrics_score = sum(
+            1 for keyword in self.quality_indicators["landscape_metrics_keywords"]
+            if keyword in message_lower
+        ) / len(self.quality_indicators["landscape_metrics_keywords"])
+        
+        # Combined spatial understanding score
+        spatial_understanding = (spatial_reasoning_score + gis_methods_score + landscape_metrics_score) / 3
+        
         # Question complexity (0-3 scale)
         question_complexity = 0
         if "?" in message:
@@ -172,19 +220,24 @@ class AssessmentQualitySystem:
         
         # Calculate overall thoughtfulness score
         thoughtfulness = (
-            (critical_thinking_score * 0.3) +
-            (synthesis_score * 0.3) +
-            (depth_score * 0.2) +
-            (min(word_count / 100, 1) * 0.1) +
-            (question_complexity / 3 * 0.1)
+            (critical_thinking_score * 0.25) +
+            (synthesis_score * 0.25) +
+            (depth_score * 0.15) +
+            (spatial_understanding * 0.25) +
+            (min(word_count / 100, 1) * 0.05) +
+            (question_complexity / 3 * 0.05)
         ) * 100
         
         return {
             "thoughtfulness_score": thoughtfulness,
             "critical_thinking_present": critical_thinking_score > 0.1,
             "synthesis_present": synthesis_score > 0.1,
+            "spatial_reasoning_present": spatial_understanding > 0.1,
             "word_count": word_count,
-            "question_complexity": question_complexity
+            "question_complexity": question_complexity,
+            "spatial_understanding_score": spatial_understanding * 100,
+            "gis_methods_mentioned": gis_methods_score > 0,
+            "landscape_metrics_mentioned": landscape_metrics_score > 0
         }
     
     def evaluate_session_rubric(self, student_id: str, session_id: int) -> Dict[str, Any]:

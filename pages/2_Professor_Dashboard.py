@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 from components.auth import is_authenticated, get_current_user
 from components.database import get_student_analytics, get_chat_sessions, get_chat_messages, export_interactions_csv
 from components.assessment_quality import AssessmentQualitySystem
+from components.discussion_prep import DiscussionPrepSystem
+from components.grading_export import GradingExportSystem
+from components.gis_question_templates import GISQuestionTemplateSystem
 
 st.set_page_config(page_title="Professor Dashboard", page_icon="📊", layout="wide")
 
@@ -23,20 +26,25 @@ def main():
         st.error("This page is only accessible to professors.")
         st.stop()
     
-    # Initialize assessment system
+    # Initialize systems
     assessment_system = AssessmentQualitySystem()
+    discussion_prep = DiscussionPrepSystem()
+    grading_export = GradingExportSystem()
+    gis_templates = GISQuestionTemplateSystem()
     
     # Main dashboard layout
     display_overview_metrics()
     st.divider()
     
     # Tabs for different views
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📈 Analytics", 
         "👥 Student Sessions", 
         "💬 Chat Transcripts", 
         "🎯 Assessment Quality",
         "📅 Weekly Reports",
+        "🎓 Discussion Prep",
+        "📊 Enhanced Grading",
         "📥 Export Data"
     ])
     
@@ -56,6 +64,12 @@ def main():
         display_weekly_reports(assessment_system)
     
     with tab6:
+        display_discussion_prep(discussion_prep)
+    
+    with tab7:
+        display_enhanced_grading(grading_export, assessment_system)
+    
+    with tab8:
         display_export_options()
 
 def display_overview_metrics():
@@ -725,6 +739,335 @@ def display_weekly_reports(assessment_system):
             st.success(f"Export ready! Contains {len(df)} weekly reports.")
         else:
             st.warning("No weekly reports available for export")
+
+def display_discussion_prep(discussion_prep):
+    """Display class discussion preparation tools"""
+    st.markdown("### 🎓 Class Discussion Preparation")
+    st.markdown("Generate discussion points based on student interactions to guide your in-class sessions")
+    
+    # Article selection for discussion prep
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        article_title = st.text_input(
+            "Article Title (optional):",
+            placeholder="Leave blank for all recent articles",
+            help="Generate discussion prep for a specific article"
+        )
+    
+    with col2:
+        days_back = st.number_input(
+            "Days to analyze:",
+            min_value=1,
+            max_value=30,
+            value=7,
+            help="Number of days of student interactions to analyze"
+        )
+    
+    if st.button("Generate Discussion Preparation", use_container_width=True):
+        with st.spinner("Analyzing student interactions and generating discussion points..."):
+            try:
+                prep_data = discussion_prep.generate_discussion_prep(
+                    article_title=article_title if article_title else None,
+                    days_back=days_back
+                )
+                
+                if prep_data and prep_data.get('student_count', 0) > 0:
+                    discussion_prep.display_discussion_prep(prep_data)
+                else:
+                    st.warning("No student interactions found for the specified criteria. Try expanding the date range or checking a different article.")
+            
+            except Exception as e:
+                st.error(f"Error generating discussion preparation: {str(e)}")
+    
+    st.divider()
+    
+    # Quick insights section
+    st.markdown("#### 💡 Quick Discussion Tips")
+    st.markdown("""
+    **Based on Landscape Ecology & GIS Focus:**
+    
+    🗺️ **Spatial Scale Questions**: Always ask students to consider how findings might change at different spatial scales
+    
+    🔗 **Connectivity Discussions**: Help students connect fragmentation concepts to real-world conservation planning
+    
+    📊 **GIS Method Critique**: Encourage students to evaluate the appropriateness of spatial analysis techniques used
+    
+    🌍 **Cross-System Applications**: Guide students to apply concepts across different landscape types (forest, urban, agricultural)
+    
+    ⚖️ **Scale vs. Process Matching**: Discuss how ecological processes operate at different scales and how this affects study design
+    """)
+
+def display_enhanced_grading(grading_export, assessment_system):
+    """Display enhanced grading and assessment tools"""
+    st.markdown("### 📊 Enhanced Grading System")
+    st.markdown("Comprehensive grading tools with spatial reasoning assessment and detailed reporting")
+    
+    # Grading options
+    grading_option = st.selectbox(
+        "Select Grading Tool:",
+        ["Comprehensive Class Report", "Individual Student Report", "Spatial Reasoning Assessment"],
+        help="Choose the type of grading report to generate"
+    )
+    
+    if grading_option == "Comprehensive Class Report":
+        st.markdown("#### 📋 Generate Comprehensive Class Report")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            article_filter = st.text_input(
+                "Filter by Article (optional):",
+                placeholder="Enter article title to filter",
+                help="Leave blank to include all articles"
+            )
+        
+        with col2:
+            week_filter = st.number_input(
+                "Filter by Week (optional):",
+                min_value=1,
+                max_value=16,
+                value=None,
+                help="Enter week number to filter"
+            )
+        
+        if st.button("Generate Class Report", use_container_width=True):
+            with st.spinner("Generating comprehensive grading report..."):
+                try:
+                    grading_data = grading_export.export_comprehensive_grading_report(
+                        article_title=article_filter if article_filter else None,
+                        week_number=int(week_filter) if week_filter else None
+                    )
+                    
+                    if "error" in grading_data:
+                        st.error(grading_data["error"])
+                    else:
+                        st.success("✅ Grading report generated successfully!")
+                        
+                        # Display summary
+                        summaries = grading_data["student_summaries"]
+                        
+                        st.markdown(f"#### 📊 Class Summary ({len(summaries)} students)")
+                        
+                        # Quick metrics
+                        if summaries:
+                            avg_engagement = sum(s["engagement_score"] for s in summaries) / len(summaries)
+                            high_performers = sum(1 for s in summaries if s["engagement_score"] >= 85)
+                            deep_thinkers = sum(1 for s in summaries if s["max_cognitive_level"] >= 3)
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Avg Class Engagement", f"{avg_engagement:.1f}%")
+                            with col2:
+                                st.metric("High Performers (85%+)", high_performers)
+                            with col3:
+                                st.metric("Deep Thinkers (Level 3+)", deep_thinkers)
+                        
+                        # Student summary table
+                        st.markdown("#### 👥 Student Performance Summary")
+                        summary_df = pd.DataFrame(summaries)
+                        st.dataframe(
+                            summary_df[['student_id', 'total_sessions', 'avg_duration_minutes', 
+                                       'max_cognitive_level', 'engagement_score', 'letter_grade']],
+                            hide_index=True
+                        )
+                        
+                        # Export to Excel
+                        excel_data = grading_export.export_to_excel(grading_data)
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        
+                        st.download_button(
+                            label="📥 Download Complete Excel Report",
+                            data=excel_data,
+                            file_name=f"comprehensive_grading_report_{timestamp}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+                
+                except Exception as e:
+                    st.error(f"Error generating report: {str(e)}")
+    
+    elif grading_option == "Individual Student Report":
+        st.markdown("#### 👤 Individual Student Detailed Report")
+        
+        # Get student list
+        conn = sqlite3.connect('data/chatbot_interactions.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT user_id FROM chat_sessions WHERE user_type = 'Student' ORDER BY user_id")
+        students = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        if students:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                selected_student = st.selectbox(
+                    "Select Student:",
+                    students,
+                    help="Choose student for detailed report"
+                )
+            
+            with col2:
+                article_filter = st.text_input(
+                    "Filter by Article (optional):",
+                    placeholder="Leave blank for all articles"
+                )
+            
+            if st.button("Generate Individual Report", use_container_width=True):
+                with st.spinner(f"Generating detailed report for {selected_student}..."):
+                    try:
+                        report_data = grading_export.export_individual_student_report(
+                            student_id=selected_student,
+                            article_title=article_filter if article_filter else None
+                        )
+                        
+                        if "error" in report_data:
+                            st.error(report_data["error"])
+                        else:
+                            st.success(f"✅ Individual report generated for {selected_student}")
+                            
+                            # Display performance analysis
+                            perf = report_data["performance_analysis"]
+                            
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Total Sessions", perf["total_sessions"])
+                            with col2:
+                                st.metric("Total Duration", f"{perf['total_duration']:.1f} min")
+                            with col3:
+                                st.metric("Avg Duration", f"{perf['avg_duration']:.1f} min")
+                            with col4:
+                                engagement_trend = "📈" if perf['engagement_pattern']['duration_trend'] == 'improving' else "📉"
+                                st.metric("Trend", f"{engagement_trend} {perf['engagement_pattern']['duration_trend'].title()}")
+                            
+                            # Strengths and improvements
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown("**🌟 Strengths:**")
+                                for strength in perf["strengths"]:
+                                    st.markdown(f"• {strength}")
+                            
+                            with col2:
+                                st.markdown("**🎯 Areas for Improvement:**")
+                                for improvement in perf["areas_for_improvement"]:
+                                    st.markdown(f"• {improvement}")
+                            
+                            # Recommendations
+                            st.markdown("**💡 Recommendations:**")
+                            for rec in report_data["recommendations"]:
+                                st.markdown(f"• {rec}")
+                    
+                    except Exception as e:
+                        st.error(f"Error generating individual report: {str(e)}")
+        else:
+            st.info("No students found in the system.")
+    
+    else:  # Spatial Reasoning Assessment
+        st.markdown("#### 🗺️ Spatial Reasoning Assessment")
+        st.markdown("Specialized assessment focusing on GIS concepts and spatial thinking skills")
+        
+        # Get recent sessions with spatial content
+        conn = sqlite3.connect('data/chatbot_interactions.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.session_id, s.user_id, s.article_title, s.start_time,
+                   COUNT(m.id) as message_count
+            FROM chat_sessions s
+            JOIN chat_messages m ON s.session_id = m.session_id
+            WHERE s.user_type = 'Student' 
+            AND (LOWER(m.content) LIKE '%spatial%' OR LOWER(m.content) LIKE '%gis%' 
+                 OR LOWER(m.content) LIKE '%scale%' OR LOWER(m.content) LIKE '%resolution%')
+            GROUP BY s.session_id
+            ORDER BY s.start_time DESC
+            LIMIT 20
+        """)
+        spatial_sessions = cursor.fetchall()
+        conn.close()
+        
+        if spatial_sessions:
+            session_options = {
+                f"{row[1]} - {row[2][:30]}... ({row[4]} msgs)": row[0]
+                for row in spatial_sessions
+            }
+            
+            selected_session_name = st.selectbox(
+                "Select session with spatial content:",
+                list(session_options.keys()),
+                help="Sessions containing spatial reasoning indicators"
+            )
+            
+            if st.button("Assess Spatial Reasoning", use_container_width=True):
+                session_id = session_options[selected_session_name]
+                
+                with st.spinner("Analyzing spatial reasoning capabilities..."):
+                    try:
+                        # Get session messages
+                        conn = sqlite3.connect('data/chatbot_interactions.db')
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            SELECT role, content FROM chat_messages 
+                            WHERE session_id = ? AND role = 'user'
+                            ORDER BY message_order
+                        """, (session_id,))
+                        messages = cursor.fetchall()
+                        conn.close()
+                        
+                        if messages:
+                            # Analyze spatial reasoning
+                            spatial_score = 0
+                            spatial_indicators = []
+                            
+                            spatial_keywords = [
+                                "scale", "resolution", "extent", "grain", "spatial pattern",
+                                "connectivity", "fragmentation", "gis", "remote sensing",
+                                "buffer", "overlay", "network analysis", "proximity"
+                            ]
+                            
+                            all_text = ' '.join([msg[1].lower() for msg in messages])
+                            
+                            for keyword in spatial_keywords:
+                                if keyword in all_text:
+                                    spatial_score += 10
+                                    spatial_indicators.append(keyword)
+                            
+                            spatial_score = min(100, spatial_score)  # Cap at 100
+                            
+                            # Display results
+                            st.markdown("#### 🎯 Spatial Reasoning Assessment Results")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Spatial Reasoning Score", f"{spatial_score}%")
+                            with col2:
+                                st.metric("Spatial Concepts Used", len(spatial_indicators))
+                            with col3:
+                                grade = "A" if spatial_score >= 90 else "B" if spatial_score >= 80 else "C" if spatial_score >= 70 else "D" if spatial_score >= 60 else "F"
+                                st.metric("Spatial Reasoning Grade", grade)
+                            
+                            if spatial_indicators:
+                                st.markdown("**🗺️ Spatial Concepts Demonstrated:**")
+                                cols = st.columns(3)
+                                for i, indicator in enumerate(spatial_indicators[:9]):  # Show up to 9
+                                    cols[i % 3].markdown(f"• {indicator.title()}")
+                            
+                            # Provide specific feedback
+                            st.markdown("#### 💡 Spatial Reasoning Feedback")
+                            
+                            if spatial_score >= 80:
+                                st.success("🌟 **Excellent spatial reasoning!** Student demonstrates sophisticated understanding of GIS concepts and spatial relationships.")
+                            elif spatial_score >= 60:
+                                st.warning("⚡ **Good spatial awareness.** Student shows solid grasp of spatial concepts but could explore more advanced GIS applications.")
+                            else:
+                                st.error("📚 **Needs spatial reasoning development.** Recommend focusing on scale effects, spatial patterns, and GIS method understanding.")
+                        
+                        else:
+                            st.warning("No student messages found for this session.")
+                    
+                    except Exception as e:
+                        st.error(f"Error analyzing spatial reasoning: {str(e)}")
+        else:
+            st.info("No sessions with spatial content found. Students need to engage with GIS and spatial concepts first.")
 
 if __name__ == "__main__":
     main()
