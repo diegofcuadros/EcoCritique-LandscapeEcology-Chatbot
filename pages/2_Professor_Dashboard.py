@@ -589,9 +589,9 @@ def display_assessment_quality(assessment_system):
     conn = sqlite3.connect('data/chatbot_interactions.db')
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT DISTINCT cs.user_id, cs.session_id, cs.article_title, cs.timestamp
+        SELECT DISTINCT cs.user_id, cs.session_id, cs.article_title, cs.start_time
         FROM chat_sessions cs
-        ORDER BY cs.timestamp DESC
+        ORDER BY cs.start_time DESC
         LIMIT 20
     """)
     recent_sessions = cursor.fetchall()
