@@ -154,7 +154,7 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         if not messages:
             # Initial bot message
             intro_message = f"""
-            Hello! I'm your Socratic AI tutor. I see we're discussing "{current_article['title']}".
+            Hello! I'm your Landscape Ecology AI tutor. I see we're discussing "{current_article['title']}".
             
             I'm here to guide you through critical analysis of this article using questions rather than giving you direct answers. 
             
@@ -243,9 +243,8 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         key_concepts = st.session_state.get('key_concepts', [])
         engagement_system.update_progress(user['id'], len(get_chat_history()), key_concepts)
         
-        # Auto-save session periodically
-        if len(get_chat_history()) % 4 == 0:  # Save every 4 messages
-            save_current_session(user, chat_engine, auto_save=True)
+        # Auto-save session after every exchange to ensure data persistence
+        save_current_session(user, chat_engine, auto_save=True)
         
         st.rerun()
 
@@ -257,19 +256,24 @@ def save_current_session(user, chat_engine, auto_save=False):
             st.warning("No messages to save.")
         return
     
+    # Ensure stable session ID - create once and keep for the entire session
     session_id = st.session_state.get('chat_session_id')
     if not session_id:
-        session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        import uuid
+        session_id = str(uuid.uuid4())
         st.session_state.chat_session_id = session_id
     
     article_title = st.session_state.get('current_article', {}).get('title', 'Unknown Article')
     duration = calculate_session_duration()
     max_level = chat_engine.get_conversation_level(messages)
     
+    # Standardize user_type to ensure consistent database filtering
+    user_type = "Student" if user['type'].lower() in ['student', 'guest'] else user['type']
+    
     success = save_chat_session(
         session_id=session_id,
         user_id=user['id'],
-        user_type=user['type'],
+        user_type=user_type,
         messages=messages,
         article_title=article_title,
         duration_minutes=duration,

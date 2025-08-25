@@ -6,7 +6,7 @@ from components.database_init import initialize_database as init_all_tables
 
 # Page configuration
 st.set_page_config(
-    page_title="Landscape Ecology Socratic Chatbot",
+    page_title="Landscape Ecology Chatbot",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -19,7 +19,21 @@ st.markdown("""
         text-align: center;
         color: #2E8B57;
         font-size: 2.5rem;
-        margin-bottom: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    .course-info {
+        text-align: center;
+        color: #2E8B57;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+    .university-info {
+        text-align: center;
+        color: #2E8B57;
+        font-size: 1.0rem;
+        font-weight: 500;
+        margin-bottom: 1.5rem;
     }
     .subtitle {
         text-align: center;
@@ -43,8 +57,19 @@ def main():
     init_all_tables()  # Ensure all tables exist with correct schema
     initialize_auth()
     
+    # Quick database health check (only show to professors)
+    if st.session_state.get('user_type') == 'Professor':
+        from components.database_init import check_database_health
+        is_healthy, message = check_database_health()
+        if not is_healthy:
+            st.error(f"Database issue: {message}")
+        else:
+            st.caption(f"✅ Database: {message}")
+    
     # Main header
-    st.markdown('<h1 class="main-header">🌿 Landscape Ecology Socratic Chatbot</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🌿 Landscape Ecology Chatbot</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="course-info">GEOG/EVST 5015C/6015C</p>', unsafe_allow_html=True)
+    st.markdown('<p class="university-info">University of Cincinnati</p>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">An AI-powered learning companion for critical article analysis</p>', unsafe_allow_html=True)
     
     # Check if user is authenticated
