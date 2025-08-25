@@ -247,10 +247,10 @@ class AssessmentQualitySystem:
         
         # Get session messages
         cursor.execute("""
-            SELECT user_message, ai_response, cognitive_level
+            SELECT role, content, timestamp
             FROM chat_messages
             WHERE session_id = ?
-            ORDER BY timestamp
+            ORDER BY message_order
         """, (session_id,))
         messages = cursor.fetchall()
         
@@ -271,26 +271,31 @@ class AssessmentQualitySystem:
         # Calculate rubric scores
         scores = {}
         
+        # Filter student messages (role = 'user')
+        student_messages = [msg[1] for msg in messages if msg[0] == 'user' and msg[1]]
+        
         # 1. Depth of Analysis
-        quality_scores = [self.calculate_message_quality(msg[0])["thoughtfulness_score"] 
-                         for msg in messages if msg[0]]
-        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
-        scores["depth_of_analysis"] = min(100, avg_quality * 1.2)
+        if student_messages:
+            quality_scores = [self.calculate_message_quality(msg)["thoughtfulness_score"] 
+                             for msg in student_messages]
+            avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
+            scores["depth_of_analysis"] = min(100, avg_quality * 1.2)
+        else:
+            scores["depth_of_analysis"] = 0
         
         # 2. Concept Integration
         unique_concepts = set()
-        for msg in messages:
-            if msg[0]:
-                # Extract potential concepts (simplified - could use NLP)
-                words = msg[0].lower().split()
-                concepts = [w for w in words if len(w) > 6 and w.isalpha()]
-                unique_concepts.update(concepts[:5])
+        for msg in student_messages:
+            # Extract potential concepts (simplified - could use NLP)
+            words = msg.lower().split()
+            concepts = [w for w in words if len(w) > 6 and w.isalpha()]
+            unique_concepts.update(concepts[:5])
         
         concept_score = min(100, len(unique_concepts) * 5)
         scores["concept_integration"] = concept_score
         
         # 3. Question Quality
-        questions = [msg[0] for msg in messages if msg[0] and "?" in msg[0]]
+        questions = [msg for msg in student_messages if "?" in msg]
         if questions:
             question_qualities = [self.calculate_message_quality(q)["question_complexity"] 
                                  for q in questions]

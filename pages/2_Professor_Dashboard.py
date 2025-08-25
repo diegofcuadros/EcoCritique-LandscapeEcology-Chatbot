@@ -11,6 +11,7 @@ from components.assessment_quality import AssessmentQualitySystem
 from components.discussion_prep import DiscussionPrepSystem
 from components.grading_export import GradingExportSystem
 from components.gis_question_templates import GISQuestionTemplateSystem
+from components.chat_export import ChatExportSystem
 
 st.set_page_config(page_title="Professor Dashboard", page_icon="📊", layout="wide")
 
@@ -31,13 +32,14 @@ def main():
     discussion_prep = DiscussionPrepSystem()
     grading_export = GradingExportSystem()
     gis_templates = GISQuestionTemplateSystem()
+    chat_export = ChatExportSystem()
     
     # Main dashboard layout
     display_overview_metrics()
     st.divider()
     
     # Tabs for different views
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📈 Analytics", 
         "👥 Student Sessions", 
         "💬 Chat Transcripts", 
@@ -45,6 +47,7 @@ def main():
         "📅 Weekly Reports",
         "🎓 Discussion Prep",
         "📊 Enhanced Grading",
+        "📄 Chat Exports",
         "📥 Export Data"
     ])
     
@@ -70,6 +73,9 @@ def main():
         display_enhanced_grading(grading_export, assessment_system)
     
     with tab8:
+        display_chat_exports(chat_export)
+    
+    with tab9:
         display_export_options()
 
 def display_overview_metrics():
@@ -1071,3 +1077,140 @@ def display_enhanced_grading(grading_export, assessment_system):
 
 if __name__ == "__main__":
     main()
+
+def display_chat_exports(chat_export):
+    """Display chat export functionality with text and markdown options"""
+    st.markdown("### 📄 Chat Transcript Exports")
+    st.markdown("Export student conversations as text files or markdown documents for detailed review and grading")
+    
+    export_type = st.selectbox(
+        "Select Export Type:",
+        ["Individual Session", "All Sessions for Student", "Class Summary"],
+        help="Choose what type of export you want to create"
+    )
+    
+    format_type = st.selectbox(
+        "Export Format:",
+        ["Markdown", "Plain Text"],
+        help="Choose the format for your export file"
+    )
+    
+    if export_type == "Individual Session":
+        st.markdown("#### 📝 Export Individual Chat Session")
+        
+        # Get available sessions
+        sessions = chat_export.get_available_sessions()
+        
+        if sessions:
+            session_options = {session["display_name"]: session["session_id"] for session in sessions}
+            
+            selected_session_name = st.selectbox(
+                "Select Chat Session:",
+                list(session_options.keys()),
+                help="Choose a specific chat session to export"
+            )
+            
+            if st.button("Export Session Transcript", use_container_width=True):
+                session_id = session_options[selected_session_name]
+                
+                with st.spinner("Generating transcript..."):
+                    transcript = chat_export.export_individual_chat_transcript(session_id, format_type.lower())
+                    
+                    if transcript and not transcript.startswith("Error"):
+                        st.success("✅ Transcript generated successfully!")
+                        
+                        # Show preview
+                        st.markdown("#### 👀 Preview:")
+                        if format_type.lower() == "markdown":
+                            st.markdown(transcript[:1000] + "..." if len(transcript) > 1000 else transcript)
+                        else:
+                            st.text(transcript[:1000] + "..." if len(transcript) > 1000 else transcript)
+                        
+                        # Download button
+                        file_extension = "md" if format_type.lower() == "markdown" else "txt"
+                        filename = f"chat_transcript_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+                        
+                        st.download_button(
+                            label=f"📥 Download {format_type} File",
+                            data=transcript,
+                            file_name=filename,
+                            mime="text/markdown" if format_type.lower() == "markdown" else "text/plain",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error(f"Failed to generate transcript: {transcript}")
+        else:
+            st.info("No chat sessions found.")
+    
+    elif export_type == "All Sessions for Student":
+        st.markdown("#### 👤 Export All Sessions for One Student")
+        
+        # Get student list
+        students = chat_export.get_student_list()
+        
+        if students:
+            selected_student = st.selectbox(
+                "Select Student:",
+                students,
+                help="Choose a student to export all their chat sessions"
+            )
+            
+            if st.button("Export All Student Chats", use_container_width=True):
+                with st.spinner(f"Generating complete chat history for {selected_student}..."):
+                    transcript = chat_export.export_student_all_chats(selected_student, format_type.lower())
+                    
+                    if transcript and not transcript.startswith("Error"):
+                        st.success(f"✅ Complete chat history generated for {selected_student}!")
+                        
+                        # Download button
+                        file_extension = "md" if format_type.lower() == "markdown" else "txt"
+                        filename = f"complete_chats_{selected_student}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+                        
+                        st.download_button(
+                            label=f"📥 Download Complete Chat History ({format_type})",
+                            data=transcript,
+                            file_name=filename,
+                            mime="text/markdown" if format_type.lower() == "markdown" else "text/plain",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error(f"Failed to generate chat history: {transcript}")
+        else:
+            st.info("No students found with chat sessions.")
+    
+    else:  # Class Summary
+        st.markdown("#### 📊 Export Class Summary")
+        
+        # Optional article filter
+        article_filter = st.text_input(
+            "Filter by Article (optional):",
+            placeholder="Leave blank for all articles",
+            help="Enter article title to filter summary"
+        )
+        
+        if st.button("Generate Class Summary", use_container_width=True):
+            with st.spinner("Generating class summary..."):
+                summary = chat_export.export_class_summary(
+                    article_title=article_filter if article_filter else None,
+                    format_type=format_type.lower()
+                )
+                
+                if summary and not summary.startswith("Error"):
+                    st.success("✅ Class summary generated!")
+                    
+                    # Download button
+                    file_extension = "md" if format_type.lower() == "markdown" else "txt"
+                    article_suffix = f"_{article_filter}" if article_filter else "_all_articles"
+                    filename = f"class_summary{article_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+                    
+                    st.download_button(
+                        label=f"📥 Download Class Summary ({format_type})",
+                        data=summary,
+                        file_name=filename,
+                        mime="text/markdown" if format_type.lower() == "markdown" else "text/plain",
+                        use_container_width=True
+                    )
+                else:
+                    st.error(f"Failed to generate class summary: {summary}")
+
+
