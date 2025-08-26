@@ -61,40 +61,42 @@ class SocraticChatEngine:
                                  conversation_history: List[Dict],
                                  article_context: str,
                                  landscape_knowledge: str) -> str:
-        """Generate a Socratic response that guides without giving answers"""
+        """Generate an informed response that balances substantive answers with guided discovery"""
         
         current_level = self.get_conversation_level(conversation_history)
         level_name = self.conversation_levels[current_level]
         
-        # Build the system prompt for Socratic questioning
+        # Build the system prompt for balanced teaching
         system_prompt = f"""
-        You are a Socratic AI tutor for landscape ecology. Your role is to guide students through critical analysis of research articles using the Socratic method.
+        You are a knowledgeable Landscape Ecology AI tutor specializing in research article analysis. You use a balanced approach combining informative answers with guided discovery.
 
-        CORE PRINCIPLES:
-        1. NEVER provide direct answers to questions
-        2. Always respond with questions that lead students to discover insights themselves
-        3. Guide students through progressive levels of understanding
-        4. Challenge assumptions and encourage critical thinking
-        5. Connect findings to broader landscape ecology concepts
+        CORE TEACHING PRINCIPLES:
+        1. PROVIDE SUBSTANTIVE ANSWERS when students ask direct questions about concepts, methods, or findings
+        2. Share relevant information from the article being discussed to enhance understanding
+        3. Use guided questions to encourage deeper thinking AFTER providing helpful information
+        4. Be an expert source of knowledge while still promoting critical analysis
+        5. Balance explanation with exploration - inform first, then guide discovery
 
         CURRENT CONVERSATION LEVEL: {level_name}
         
-        CONVERSATION CONTEXT:
-        - Article being discussed: {article_context[:500]}...
-        - Relevant landscape ecology concepts: {landscape_knowledge[:300]}...
+        ARTICLE CONTEXT (be very knowledgeable about this):
+        {article_context[:1000]}
         
-        SOCRATIC GUIDELINES:
-        - If student asks for an answer, redirect with "What do you think?" type questions
-        - Build on their responses to deepen understanding
-        - Use phrases like "What evidence supports that?" or "How might that connect to...?"
-        - Encourage them to explain their reasoning
-        - Point out contradictions gently through questions
+        RELEVANT LANDSCAPE ECOLOGY KNOWLEDGE:
+        {landscape_knowledge[:800]}
+        
+        RESPONSE STRATEGY:
+        - When students ask "what is X?" or "how does Y work?" → Provide clear, informative explanations
+        - When students show understanding → Ask follow-up questions to deepen analysis
+        - When students seem confused → Explain concepts clearly, then check understanding
+        - When students make statements → Validate good points and ask them to elaborate or connect to broader concepts
+        - Always reference specific details from the article when relevant
+        - Connect article findings to broader landscape ecology principles
         
         LEVEL-SPECIFIC FOCUS ({level_name}):
         {self._get_level_guidance(level_name)}
         
-        Response should be 1-3 questions that guide the student deeper into the topic.
-        Keep responses conversational and encouraging.
+        Be conversational, knowledgeable, and genuinely helpful. Provide substantial information while encouraging critical thinking.
         """
         
         # Prepare messages for OpenAI
@@ -122,27 +124,27 @@ class SocraticChatEngine:
             # If there's an error, try direct concept recognition as fallback
             user_msg = user_message.lower()
             
-            # Direct concept recognition with immediate responses
+            # Provide informative responses with guided follow-ups
             if 'transdisciplin' in user_msg:
-                return "Transdisciplinarity is a fascinating concept! What do you think makes it different from simply having biologists and geographers work together on the same problem?"
+                return "Transdisciplinarity goes beyond interdisciplinary work by creating entirely new frameworks that transcend traditional disciplinary boundaries. Unlike interdisciplinary research where ecologists and geographers collaborate while maintaining their disciplinary perspectives, transdisciplinary work develops new conceptual approaches that integrate knowledge systems. In landscape ecology, this might mean creating new theories that combine social, ecological, and technological perspectives. How do you see this approach being applied in the article we're discussing?"
             elif 'interdisciplin' in user_msg:
-                return "Good question about interdisciplinary approaches. How might an ecologist and a geographer look at the same landscape differently?"
+                return "Interdisciplinary approaches in landscape ecology combine methods and perspectives from multiple fields like ecology, geography, remote sensing, and social sciences. Each discipline brings unique tools - ecologists contribute species-habitat relationships, geographers add spatial analysis skills, and remote sensing specialists provide landscape-scale data. This integration is essential because landscape-scale phenomena can't be understood through any single disciplinary lens. What interdisciplinary elements do you notice in this study's methodology?"
             elif 'connectivity' in user_msg:
-                return "Connectivity is crucial in landscape ecology! What do you think makes two habitat patches 'connected' from an animal's perspective?"
+                return "Connectivity refers to how landscape elements facilitate or impede movement of organisms, materials, or energy. There are two types: structural connectivity (physical arrangement of landscape elements) and functional connectivity (how organisms actually move through the landscape). Factors like corridors, stepping stones, and matrix permeability affect connectivity. The scale matters too - what's connected for a bird might not be for a beetle. What types of connectivity are discussed in your article?"
             elif 'fragmentation' in user_msg:
-                return "Habitat fragmentation is a major concern. What do you think happens to wildlife populations when large habitats are broken into smaller pieces?"
+                return "Habitat fragmentation breaks continuous habitats into smaller, isolated patches, creating several key effects: reduced patch size (affects carrying capacity), increased edge effects (changing microclimates and species composition), and reduced connectivity (limiting movement and gene flow). This can lead to local extinctions, reduced biodiversity, and altered ecosystem processes. The matrix between fragments also matters - some are more permeable than others. How does the study you're reading address fragmentation impacts?"
             elif 'scale' in user_msg:
-                return "Scale is fundamental to landscape ecology! What patterns might you see at a landscape scale that wouldn't be visible at a local scale?"
+                return "Scale is fundamental in landscape ecology, involving both spatial extent (area covered) and resolution (level of detail). Different processes operate at different scales - local succession, landscape-level disturbance regimes, regional climate patterns. What's visible at one scale may not be apparent at another. For example, individual tree mortality might be random at the local scale but show clear patterns at the landscape scale due to environmental gradients. What scales are considered in your article?"
             elif 'edge effect' in user_msg:
-                return "Edge effects are fascinating! What differences would you expect to find between the edge and interior of a forest fragment?"
+                return "Edge effects occur where two different habitats meet, creating unique conditions different from either habitat's interior. Edges typically have increased light, temperature fluctuation, wind exposure, and different species composition. They can extend 10-100+ meters into forest interiors depending on what's being measured. Some species benefit from edges (edge species) while others avoid them (interior species). The edge-to-interior ratio increases dramatically as patches get smaller. What edge effects are mentioned in your study?"
             elif 'metapopulation' in user_msg:
-                return "Metapopulations are a key concept! What do you think happens when local populations are connected by occasional migration?"
+                return "A metapopulation is a group of local populations connected by migration, where local extinctions can be recolonized from other patches. This concept explains how species persist in fragmented landscapes through a balance of extinction and colonization. Key factors include patch size (affects extinction probability), isolation (affects colonization), and population size (affects migration). The 'source-sink' dynamic is crucial - some patches are net producers of migrants while others depend on immigration. Does your article discuss metapopulation dynamics?"
             elif 'disturbance' in user_msg:
-                return "Disturbance is fundamental in landscapes! What different types of disturbances can you think of that affect ecosystems?"
+                return "Disturbances are discrete events that disrupt ecosystems and create heterogeneity across landscapes. They vary in intensity, frequency, duration, and spatial pattern. Natural disturbances include fire, windstorms, floods, and pest outbreaks, while human disturbances include logging, urbanization, and agriculture. Disturbance regimes (the pattern of disturbances over time) shape landscape patterns and are often more important than individual disturbance events. What disturbances are discussed in your article?"
             elif 'pattern' in user_msg:
-                return "Spatial patterns are key to understanding landscapes! What patterns do you observe in the study area?"
+                return "Spatial patterns in landscapes result from interactions between environmental gradients, disturbance history, and biological processes. Common patterns include gradients (continuous change), patches (discrete units), corridors (linear features), and mosaics (complex mixtures). Pattern analysis uses metrics like patch size, shape complexity, connectivity, and spatial arrangement. Understanding patterns helps predict ecological processes and species distributions. What spatial patterns does the study describe?"
             elif 'heterogeneity' in user_msg:
-                return "Heterogeneity is what makes landscapes interesting! What creates the spatial variation you see in this landscape?"
+                return "Landscape heterogeneity refers to the spatial variation in environmental conditions, resources, or habitats across an area. It can result from topography, climate, soils, disturbance history, and human activities. Heterogeneity is crucial because it creates diverse niches, affects species diversity, influences ecological processes, and provides resilience against environmental changes. Different species perceive and respond to heterogeneity differently based on their life history traits. How does heterogeneity feature in your article?"
             else:
                 return "That's an interesting question about landscape ecology. Can you tell me more about what specific aspect you'd like to explore?"
     

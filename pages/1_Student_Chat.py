@@ -156,9 +156,9 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
             intro_message = f"""
             Hello! I'm your Landscape Ecology AI tutor. I see we're discussing "{current_article['title']}".
             
-            I'm here to guide you through critical analysis of this article using questions rather than giving you direct answers. 
+            I'm here to help you understand this article and landscape ecology concepts. I can answer your questions about methods, findings, and concepts, while also guiding you through critical analysis with thought-provoking questions.
             
-            Have you finished reading the article? What caught your attention first?
+            Have you finished reading the article? What would you like to know more about or discuss?
             """
             add_message("assistant", intro_message)
             st.rerun()

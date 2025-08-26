@@ -407,6 +407,39 @@ class ArticleProcessor:
         
         return context
     
+    def get_article_context(self) -> str:
+        """
+        Get comprehensive article context including full text excerpts for AI analysis.
+        Provides more detailed information than get_article_context_for_ai().
+        
+        Returns:
+            str: Detailed article context with text excerpts
+        """
+        if not self.current_article:
+            return "No article currently loaded for discussion."
+        
+        context = f"Article: {self.current_article['title']}\n\n"
+        
+        # Add article summary and key information
+        if self.article_summary:
+            context += f"Summary: {self.article_summary}\n\n"
+        
+        # Add key concepts
+        if self.key_concepts:
+            context += f"Key Concepts: {', '.join(self.key_concepts)}\n\n"
+        
+        # Add substantial text excerpts from the article for context
+        if hasattr(self, 'processed_text') and self.processed_text:
+            # Extract meaningful sections of text (first 2000 characters as sample)
+            text_sample = self.processed_text[:2000] if len(self.processed_text) > 2000 else self.processed_text
+            context += f"Article Content (excerpt):\n{text_sample}\n\n"
+        
+        # Add learning objectives if available
+        if self.learning_objectives:
+            context += f"Learning Focus: {'; '.join(self.learning_objectives)}"
+        
+        return context
+    
     def get_article_metadata(self) -> Dict:
         """
         Get article metadata for display or storage.
