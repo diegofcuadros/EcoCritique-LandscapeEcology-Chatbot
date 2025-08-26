@@ -121,22 +121,66 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
     
     st.divider()
     
-    # Article info and concept map
-    col1, col2 = st.columns([1, 1])
+    # Enhanced Article Information Section - Always Visible
+    st.markdown("### 📄 Current Article")
     
-    with col1:
-        with st.expander("📄 Current Article", expanded=False):
-            st.markdown(f"**Title:** {current_article['title']}")
-            st.markdown(f"**Summary:** {st.session_state.get('article_summary', 'No summary available')}")
+    # Create a prominent container for article information
+    with st.container():
+        # Article title and basic info
+        st.markdown(f"**{current_article['title']}**")
+        
+        # Create tabs for different information sections
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 Summary & Key Points", "🔍 Key Terminology", "🧠 Key Concepts", "🗺️ Concept Map"])
+        
+        with tab1:
+            # Article summary
+            article_summary = st.session_state.get('article_summary', 'No summary available')
+            st.markdown("**Article Summary:**")
+            st.info(article_summary)
             
+            # 10 bullet points
+            bullet_points = st.session_state.get('key_bullet_points', [])
+            if bullet_points:
+                st.markdown("**Key Findings & Content:**")
+                for i, point in enumerate(bullet_points, 1):
+                    st.markdown(f"{i}. {point}")
+            else:
+                st.markdown("**Key Points:** Processing article content...")
+        
+        with tab2:
+            # Key terminology with definitions
+            terminology = st.session_state.get('key_terminology', {})
+            if terminology:
+                st.markdown("**Important Terms & Definitions:**")
+                for term, definition in terminology.items():
+                    with st.expander(f"🔍 **{term}**", expanded=False):
+                        st.markdown(definition)
+            else:
+                st.markdown("**Terminology:** Processing article content...")
+        
+        with tab3:
+            # Key concepts
             key_concepts = st.session_state.get('key_concepts', [])
             if key_concepts:
-                st.markdown(f"**Key Concepts:** {', '.join(key_concepts)}")
-    
-    with col2:
-        # Concept map
-        key_concepts = st.session_state.get('key_concepts', [])
-        engagement_system.display_concept_map(user['id'], current_article['title'], key_concepts)
+                st.markdown("**Key Landscape Ecology Concepts in this Article:**")
+                concepts_text = ""
+                for concept in key_concepts:
+                    concepts_text += f"• **{concept}**\n"
+                st.markdown(concepts_text)
+                
+                # Learning objectives
+                learning_objectives = st.session_state.get('learning_objectives', [])
+                if learning_objectives:
+                    st.markdown("**Learning Objectives:**")
+                    for obj in learning_objectives:
+                        st.markdown(f"• {obj}")
+            else:
+                st.markdown("**Concepts:** Processing article content...")
+        
+        with tab4:
+            # Concept map
+            key_concepts = st.session_state.get('key_concepts', [])
+            engagement_system.display_concept_map(user['id'], current_article['title'], key_concepts)
     
     st.divider()
     

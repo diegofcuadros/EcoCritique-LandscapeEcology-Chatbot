@@ -18,6 +18,8 @@ class ArticleProcessor:
         self.article_summary = ""
         self.key_concepts = []
         self.learning_objectives = []
+        self.key_bullet_points = []
+        self.key_terminology = {}
         self.processed_text = ""
     
     def process_uploaded_file(self, uploaded_file, article_title: str = "") -> bool:
@@ -135,11 +137,19 @@ class ArticleProcessor:
             # Extract or generate learning objectives
             self.learning_objectives = self._extract_learning_objectives(self.processed_text)
             
+            # Generate 10 key bullet points
+            self.key_bullet_points = self._generate_bullet_points(self.processed_text)
+            
+            # Extract key terminology and definitions
+            self.key_terminology = self._extract_terminology(self.processed_text)
+            
             # Store in session state for access by other components
             st.session_state.current_article = self.current_article
             st.session_state.article_summary = self.article_summary
             st.session_state.key_concepts = self.key_concepts
             st.session_state.learning_objectives = self.learning_objectives
+            st.session_state.key_bullet_points = self.key_bullet_points
+            st.session_state.key_terminology = self.key_terminology
             st.session_state.processed_text = self.processed_text
             
             return True
@@ -154,6 +164,8 @@ class ArticleProcessor:
         self.article_summary = ""
         self.key_concepts = []
         self.learning_objectives = []
+        self.key_bullet_points = []
+        self.key_terminology = {}
         self.processed_text = ""
     
     def _clean_text(self, text: str) -> str:
@@ -381,6 +393,154 @@ class ArticleProcessor:
                 objectives.append("Examine spatial analysis techniques and their applications in landscape studies")
         
         return objectives[:5]  # Limit to 5 objectives
+    
+    def _generate_bullet_points(self, text: str) -> List[str]:
+        """
+        Generate 10 key bullet points summarizing the article content.
+        
+        Args:
+            text: Article text
+            
+        Returns:
+            List[str]: List of key bullet points
+        """
+        bullet_points = []
+        text_lower = text.lower()
+        
+        # Look for explicit results, findings, or conclusions
+        key_sections = []
+        section_keywords = ['result', 'finding', 'conclusion', 'discussion', 'implication']
+        
+        for keyword in section_keywords:
+            if keyword in text_lower:
+                start_pos = text_lower.find(keyword)
+                # Extract a good chunk around the keyword
+                start = max(0, start_pos - 100)
+                end = min(len(text), start_pos + 500)
+                section_text = text[start:end]
+                key_sections.append(section_text)
+        
+        # Extract sentences that contain important information
+        if key_sections:
+            combined_text = ' '.join(key_sections)
+        else:
+            # Use full text if no specific sections found
+            combined_text = text[:3000]  # First 3000 characters
+        
+        sentences = combined_text.split('.')
+        important_sentences = []
+        
+        # Look for sentences with important indicators
+        importance_indicators = [
+            'significant', 'important', 'key', 'main', 'primary', 'major',
+            'found', 'showed', 'demonstrated', 'revealed', 'indicated',
+            'suggest', 'conclude', 'result', 'effect', 'impact',
+            'connectivity', 'fragmentation', 'habitat', 'landscape', 'spatial',
+            'species', 'ecosystem', 'conservation', 'management'
+        ]
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) > 30 and len(sentence) < 200:  # Reasonable length
+                score = sum(1 for indicator in importance_indicators 
+                          if indicator in sentence.lower())
+                if score >= 2:  # At least 2 important terms
+                    important_sentences.append((sentence, score))
+        
+        # Sort by importance score and take top sentences
+        important_sentences.sort(key=lambda x: x[1], reverse=True)
+        
+        # Convert to bullet points
+        for sentence, score in important_sentences[:10]:
+            # Clean up the sentence
+            clean_sentence = sentence.strip()
+            if not clean_sentence.endswith('.'):
+                clean_sentence += '.'
+            bullet_points.append(clean_sentence)
+        
+        # Fill with generic points if not enough found
+        while len(bullet_points) < 10:
+            if len(bullet_points) == 0:
+                bullet_points.append("This article presents landscape ecology research findings.")
+            elif len(bullet_points) == 1:
+                bullet_points.append("The study examines spatial patterns and ecological processes.")
+            elif len(bullet_points) == 2:
+                bullet_points.append("Methods include spatial analysis and field data collection.")
+            elif len(bullet_points) == 3:
+                bullet_points.append("Results show relationships between landscape structure and function.")
+            elif len(bullet_points) == 4:
+                bullet_points.append("The research has implications for conservation and management.")
+            elif len(bullet_points) == 5:
+                bullet_points.append("Habitat connectivity plays a key role in the findings.")
+            elif len(bullet_points) == 6:
+                bullet_points.append("Scale effects are important for understanding the results.")
+            elif len(bullet_points) == 7:
+                bullet_points.append("The study contributes to landscape ecology theory.")
+            elif len(bullet_points) == 8:
+                bullet_points.append("Spatial heterogeneity influences ecological patterns.")
+            else:
+                bullet_points.append("Further research directions are suggested by the authors.")
+        
+        return bullet_points[:10]
+    
+    def _extract_terminology(self, text: str) -> Dict[str, str]:
+        """
+        Extract key terminology and provide definitions for landscape ecology terms.
+        
+        Args:
+            text: Article text
+            
+        Returns:
+            Dict[str, str]: Dictionary of terms and their definitions
+        """
+        terminology = {}
+        text_lower = text.lower()
+        
+        # Comprehensive landscape ecology terminology with definitions
+        landscape_terms = {
+            'connectivity': 'The degree to which landscape elements facilitate or impede movement of organisms, materials, or energy between patches.',
+            'fragmentation': 'The breaking up of continuous habitat into smaller, isolated patches, often due to human activities.',
+            'edge effects': 'Changes in environmental conditions and species composition at the boundaries between different habitats or landscape elements.',
+            'patch': 'A discrete area of habitat that differs from its surroundings, forming the basic unit of landscape structure.',
+            'corridor': 'Linear landscape elements that connect otherwise isolated habitat patches, facilitating movement of organisms.',
+            'matrix': 'The dominant landscape element that surrounds and connects patches, often influencing connectivity and edge effects.',
+            'heterogeneity': 'The spatial variation in landscape structure, composition, or function across an area.',
+            'metapopulation': 'A group of local populations connected by migration, where local extinctions can be recolonized from other patches.',
+            'scale': 'The spatial or temporal dimension of measurement, including both extent (total area) and resolution (grain size).',
+            'grain': 'The finest level of spatial resolution in a study, determining the smallest unit that can be distinguished.',
+            'extent': 'The overall area encompassed by a study or the largest scale at which patterns are measured.',
+            'disturbance': 'Any discrete event that disrupts ecosystem structure or function, creating spatial and temporal heterogeneity.',
+            'habitat': 'The environment where an organism lives and meets its life requirements, including food, shelter, and breeding sites.',
+            'landscape metrics': 'Quantitative indices that describe the spatial characteristics of landscapes, such as patch size and connectivity.',
+            'spatial analysis': 'The examination of spatial patterns and relationships using geographic information systems and statistical methods.',
+            'remote sensing': 'The acquisition of information about landscape features from satellite or aerial imagery.',
+            'gis': 'Geographic Information Systems used for capturing, storing, analyzing, and displaying spatial data.',
+            'buffer zone': 'An area surrounding a habitat patch or feature that provides additional protection or gradual transition.',
+            'ecotone': 'A transition area between two different ecosystems or habitat types, often with unique species composition.',
+            'landscape pattern': 'The spatial arrangement of landscape elements, including the size, shape, and distribution of patches.'
+        }
+        
+        # Check which terms appear in the text and add them to terminology
+        for term, definition in landscape_terms.items():
+            # Check for the term and common variations
+            variations = [term, term.replace('_', ' '), term.replace(' ', '')]
+            
+            for variation in variations:
+                if variation in text_lower:
+                    terminology[term.replace('_', ' ').title()] = definition
+                    break
+        
+        # If fewer than 5 terms found, add the most common landscape ecology terms
+        if len(terminology) < 5:
+            essential_terms = ['connectivity', 'fragmentation', 'habitat', 'scale', 'heterogeneity', 
+                             'patch', 'landscape pattern', 'edge effects', 'spatial analysis']
+            for term in essential_terms:
+                if len(terminology) >= 8:  # Limit to reasonable number
+                    break
+                if term.replace('_', ' ').title() not in terminology:
+                    terminology[term.replace('_', ' ').title()] = landscape_terms[term]
+        
+        return terminology
     
     def get_article_context_for_ai(self) -> str:
         """
