@@ -121,12 +121,20 @@ class AssessmentQualitySystem:
                 integration_score REAL,
                 question_score REAL,
                 consistency_score REAL,
+                spatial_reasoning_score REAL,
                 progression_score REAL,
                 total_score REAL,
                 suggested_grade TEXT,
                 evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add spatial_reasoning_score column if it doesn't exist (migration)
+        try:
+            cursor.execute("ALTER TABLE rubric_scores ADD COLUMN spatial_reasoning_score REAL")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
         
         # Quality metrics table
         cursor.execute("""
@@ -271,8 +279,8 @@ class AssessmentQualitySystem:
         # Calculate rubric scores
         scores = {}
         
-        # Filter student messages (role = 'user')
-        student_messages = [msg[1] for msg in messages if msg[0] == 'user' and msg[1]]
+        # Filter student messages (role = 'student')
+        student_messages = [msg[1] for msg in messages if msg[0] == 'student' and msg[1]]
         
         # 1. Depth of Analysis
         if student_messages:
@@ -284,15 +292,36 @@ class AssessmentQualitySystem:
             scores["depth_of_analysis"] = 0
         
         # 2. Concept Integration
-        unique_concepts = set()
-        for msg in student_messages:
-            # Extract potential concepts (simplified - could use NLP)
-            words = msg.lower().split()
-            concepts = [w for w in words if len(w) > 6 and w.isalpha()]
-            unique_concepts.update(concepts[:5])
+        concept_score = 0
+        landscape_ecology_terms = [
+            'connectivity', 'fragmentation', 'heterogeneity', 'scale', 'pattern',
+            'disturbance', 'edge', 'corridor', 'patch', 'matrix', 'metapopulation',
+            'habitat', 'landscape', 'ecosystem', 'biodiversity', 'conservation',
+            'spatial', 'temporal', 'resolution', 'extent', 'gradient', 'mosaic'
+        ]
         
-        concept_score = min(100, len(unique_concepts) * 5)
-        scores["concept_integration"] = concept_score
+        gis_terms = [
+            'gis', 'remote sensing', 'satellite', 'raster', 'vector', 'buffer',
+            'overlay', 'interpolation', 'classification', 'mapping', 'spatial analysis'
+        ]
+        
+        all_terms = landscape_ecology_terms + gis_terms
+        
+        for msg in student_messages:
+            msg_lower = msg.lower()
+            # Count unique landscape ecology and GIS terms used
+            terms_used = set()
+            for term in all_terms:
+                if term in msg_lower:
+                    terms_used.add(term)
+            
+            # Bonus for connecting concepts (looking for connecting words)
+            connection_words = ['relates to', 'connects', 'because', 'therefore', 'however', 'although']
+            connections_found = sum(1 for word in connection_words if word in msg_lower)
+            
+            concept_score += len(terms_used) * 3 + connections_found * 5
+        
+        scores["concept_integration"] = min(100, concept_score)
         
         # 3. Question Quality
         questions = [msg for msg in student_messages if "?" in msg]
@@ -305,25 +334,52 @@ class AssessmentQualitySystem:
             scores["question_quality"] = 40
         
         # 4. Engagement Consistency
-        message_gaps = []
-        if len(messages) > 1:
-            # Check for consistent engagement (simplified)
-            avg_words_per_message = sum(len(msg[0].split()) for msg in messages if msg[0]) / len(messages)
-            consistency_score = min(100, (avg_words_per_message / 50) * 100)
+        if student_messages:
+            # Calculate consistency based on student message length variation
+            word_counts = [len(msg.split()) for msg in student_messages]
+            avg_words = sum(word_counts) / len(word_counts)
+            
+            # Bonus for sustained engagement (more messages)
+            message_count_bonus = min(20, len(student_messages) * 2)
+            
+            # Base score from average message length
+            length_score = min(60, (avg_words / 20) * 60)
+            
+            consistency_score = length_score + message_count_bonus
         else:
-            consistency_score = 50
-        scores["engagement_consistency"] = consistency_score
+            consistency_score = 0
+        scores["engagement_consistency"] = min(100, consistency_score)
         
-        # 5. Cognitive Progression
-        # Since cognitive level is no longer stored per message, we'll estimate from session data
-        # or default to a reasonable score based on engagement
-        if len(student_messages) > 5:
+        # 5. Spatial Reasoning (GIS and landscape ecology focus)
+        spatial_score = 0
+        if student_messages:
+            spatial_scores = []
+            for msg in student_messages:
+                msg_metrics = self.calculate_message_quality(msg)
+                spatial_scores.append(msg_metrics["spatial_understanding_score"])
+            
+            avg_spatial = sum(spatial_scores) / len(spatial_scores) if spatial_scores else 0
+            spatial_score = avg_spatial
+        
+        scores["spatial_reasoning"] = spatial_score
+        
+        # 6. Cognitive Progression 
+        # Estimate based on engagement depth and progression through session
+        if len(student_messages) > 8:
+            progression_score = 85  # Excellent progression with substantial engagement
+        elif len(student_messages) > 5:
             progression_score = 75  # Good progression if substantial engagement
         elif len(student_messages) > 2:
             progression_score = 60  # Moderate progression
         else:
-            progression_score = 40  # Limited progression
-        scores["cognitive_progression"] = progression_score
+            progression_score = 30  # Limited progression
+            
+        # Bonus for asking questions (shows engagement progression)
+        question_count = sum(1 for msg in student_messages if "?" in msg)
+        if question_count > 2:
+            progression_score += min(15, question_count * 3)
+            
+        scores["cognitive_progression"] = min(100, progression_score)
         
         # Calculate weighted total
         total_score = sum(
@@ -343,16 +399,29 @@ class AssessmentQualitySystem:
         else:
             suggested_grade = "F"
         
-        # Store rubric scores
-        cursor.execute("""
-            INSERT INTO rubric_scores 
-            (student_id, session_id, article_title, depth_score, integration_score,
-             question_score, consistency_score, progression_score, total_score, suggested_grade)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (student_id, session_id, article_title, scores["depth_of_analysis"],
-              scores["concept_integration"], scores["question_quality"],
-              scores["engagement_consistency"], scores["cognitive_progression"],
-              total_score, suggested_grade))
+        # Store rubric scores (check if spatial_reasoning column exists first)
+        try:
+            cursor.execute("""
+                INSERT INTO rubric_scores 
+                (student_id, session_id, article_title, depth_score, integration_score,
+                 question_score, consistency_score, spatial_reasoning_score, progression_score, 
+                 total_score, suggested_grade)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (student_id, session_id, article_title, scores["depth_of_analysis"],
+                  scores["concept_integration"], scores["question_quality"],
+                  scores["engagement_consistency"], scores["spatial_reasoning"],
+                  scores["cognitive_progression"], total_score, suggested_grade))
+        except sqlite3.OperationalError:
+            # Fallback if spatial_reasoning_score column doesn't exist yet
+            cursor.execute("""
+                INSERT INTO rubric_scores 
+                (student_id, session_id, article_title, depth_score, integration_score,
+                 question_score, consistency_score, progression_score, total_score, suggested_grade)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (student_id, session_id, article_title, scores["depth_of_analysis"],
+                  scores["concept_integration"], scores["question_quality"],
+                  scores["engagement_consistency"], scores["cognitive_progression"],
+                  total_score, suggested_grade))
         
         conn.commit()
         conn.close()
@@ -639,6 +708,7 @@ class AssessmentQualitySystem:
                 AVG(rs.integration_score) as avg_integration,
                 AVG(rs.question_score) as avg_questions,
                 AVG(rs.consistency_score) as avg_consistency,
+                COALESCE(AVG(rs.spatial_reasoning_score), 0) as avg_spatial_reasoning,
                 AVG(rs.progression_score) as avg_progression,
                 GROUP_CONCAT(DISTINCT rs.suggested_grade) as grades
             FROM rubric_scores rs
