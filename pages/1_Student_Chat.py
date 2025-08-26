@@ -76,15 +76,17 @@ def main():
             # Load article content
             if st.button("Load Article", use_container_width=True):
                 try:
-                    with open(selected_article['file_path'], 'rb') as file:
-                        pdf_reader = PyPDF2.PdfReader(file)
-                        article_text = ""
-                        for page in pdf_reader.pages:
-                            article_text += page.extract_text()
-                        
-                        article_processor.process_article_text(article_text, selected_article['title'])
-                        st.success("Article loaded successfully!")
+                    # Use the correct method that exists in ArticleProcessor
+                    success = article_processor.process_article_from_file(
+                        selected_article['file_path'], 
+                        selected_article['title']
+                    )
+                    
+                    if success:
+                        st.success("Article loaded and processed successfully!")
                         st.rerun()
+                    else:
+                        st.error("Failed to process article. Please check the file format.")
                         
                 except Exception as e:
                     st.error(f"Error loading article: {e}")
@@ -111,6 +113,60 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
     if not current_article:
         st.info("👆 Please select and load an article from the sidebar to begin the discussion.")
         return
+    
+    # Initialize default values if processing data is missing
+    if 'key_bullet_points' not in st.session_state:
+        st.session_state.key_bullet_points = []
+    if 'key_terminology' not in st.session_state:
+        st.session_state.key_terminology = {}
+    if 'article_summary' not in st.session_state:
+        st.session_state.article_summary = "Article summary being processed..."
+    if 'key_concepts' not in st.session_state:
+        st.session_state.key_concepts = []
+    
+    # If we have an article but missing enhanced data, try to reprocess
+    if (current_article and 
+        (not st.session_state.get('key_bullet_points') or not st.session_state.get('key_terminology')) and
+        st.session_state.get('processed_text')):
+        
+        try:
+            # Reprocess using existing text data
+            processed_text = st.session_state.get('processed_text', '')
+            if processed_text:
+                # Generate missing content
+                if not st.session_state.get('key_bullet_points'):
+                    st.session_state.key_bullet_points = article_processor._generate_bullet_points(processed_text)
+                if not st.session_state.get('key_terminology'):
+                    st.session_state.key_terminology = article_processor._extract_terminology(processed_text)
+        except Exception as e:
+            st.warning(f"Could not reprocess article data: {e}")
+    
+    # Show reprocess button if data is still missing
+    if (current_article and 
+        (not st.session_state.get('key_bullet_points') or not st.session_state.get('key_terminology'))):
+        
+        st.info("Article content needs to be reprocessed with enhanced features.")
+        if st.button("🔄 Reprocess Article", key="reprocess_article"):
+            # Try to reprocess from the file
+            articles_df = get_articles(active_only=True)
+            matching_article = None
+            
+            for _, article in articles_df.iterrows():
+                if article['title'] == current_article['title']:
+                    matching_article = article
+                    break
+            
+            if matching_article is not None:
+                try:
+                    success = article_processor.process_article_from_file(
+                        matching_article['file_path'], 
+                        matching_article['title']
+                    )
+                    if success:
+                        st.success("Article reprocessed successfully!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Reprocessing failed: {e}")
     
     # Display engagement features at the top
     message_count = len(get_chat_history())

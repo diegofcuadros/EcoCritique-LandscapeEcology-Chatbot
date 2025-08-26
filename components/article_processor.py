@@ -99,6 +99,27 @@ class ArticleProcessor:
             st.error(f"Error processing file {file_path}: {str(e)}")
             return False
     
+    def process_article_text(self, text: str, title: str) -> bool:
+        """
+        Process article text directly (for when text is already extracted).
+        
+        Args:
+            text: Extracted text from article
+            title: Article title
+            
+        Returns:
+            bool: True if processing was successful
+        """
+        try:
+            # Estimate page count from text length (rough approximation)
+            estimated_pages = max(1, len(text) // 3000)  # ~3000 chars per page
+            
+            return self._process_text_content(text, title, estimated_pages)
+            
+        except Exception as e:
+            st.error(f"Error processing article text: {str(e)}")
+            return False
+    
     def _process_text_content(self, text: str, title: str, page_count: int) -> bool:
         """
         Process extracted text content and identify key components.
