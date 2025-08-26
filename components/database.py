@@ -224,6 +224,39 @@ def get_articles(active_only: bool = True) -> pd.DataFrame:
     finally:
         conn.close()
 
+def delete_article(article_id: int) -> bool:
+    """Delete an article from the database"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        st.error(f"Error deleting article from database: {e}")
+        return False
+    finally:
+        conn.close()
+
+def update_article_status(article_id: int, is_active: bool) -> bool:
+    """Update article active status"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "UPDATE articles SET is_active = ? WHERE id = ?", 
+            (is_active, article_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        st.error(f"Error updating article status: {e}")
+        return False
+    finally:
+        conn.close()
+
 def get_student_analytics() -> Dict[str, Any]:
     """Get analytics data for professor dashboard"""
     conn = sqlite3.connect(DATABASE_PATH)

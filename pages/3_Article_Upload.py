@@ -5,7 +5,7 @@ from datetime import datetime
 import PyPDF2
 import io
 from components.auth import is_authenticated, get_current_user
-from components.database import save_article, get_articles
+from components.database import save_article, get_articles, delete_article, update_article_status
 from components.rag_system import get_rag_system
 
 st.set_page_config(page_title="Article Upload", page_icon="📤", layout="wide")
@@ -262,36 +262,73 @@ def display_article_management():
                 )
                 
                 if new_status != current_status:
-                    update_article_status(article['id'], new_status)
-                    st.rerun()
+                    if update_article_status(article['id'], new_status):
+                        st.success(f"Article status updated to {'Active' if new_status else 'Inactive'}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to update article status")
             
             with col3:
-                # Delete button
+                # Delete button with confirmation
                 if st.button(
                     "🗑️ Delete",
                     key=f"delete_{article['id']}",
-                    help="Permanently delete this article"
+                    help="Permanently delete this article",
+                    type="secondary"
                 ):
-                    delete_article(article['id'], file_path)
-                    st.rerun()
+                    # Store deletion request in session state for confirmation
+                    st.session_state[f"confirm_delete_{article['id']}"] = True
+                
+                # Show confirmation dialog if deletion was requested
+                if st.session_state.get(f"confirm_delete_{article['id']}", False):
+                    st.warning("⚠️ Are you sure you want to delete this article? This action cannot be undone.")
+                    
+                    col_confirm1, col_confirm2 = st.columns(2)
+                    with col_confirm1:
+                        if st.button(
+                            "✅ Yes, Delete",
+                            key=f"confirm_yes_{article['id']}",
+                            type="primary"
+                        ):
+                            if delete_article_completely(article['id'], file_path):
+                                st.success("Article deleted successfully!")
+                                # Clear confirmation state
+                                if f"confirm_delete_{article['id']}" in st.session_state:
+                                    del st.session_state[f"confirm_delete_{article['id']}"]
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete article")
+                    
+                    with col_confirm2:
+                        if st.button(
+                            "❌ Cancel",
+                            key=f"confirm_no_{article['id']}"
+                        ):
+                            # Clear confirmation state
+                            if f"confirm_delete_{article['id']}" in st.session_state:
+                                del st.session_state[f"confirm_delete_{article['id']}"]
+                            st.rerun()
 
-def update_article_status(article_id, is_active):
-    """Update article active status"""
-    # This would update the database - simplified for this example
-    st.success(f"Article status updated to {'Active' if is_active else 'Inactive'}")
-
-def delete_article(article_id, file_path):
-    """Delete an article"""
+def delete_article_completely(article_id, file_path):
+    """Delete an article completely - both file and database record"""
     try:
-        # Remove file
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # Delete from database first
+        database_deleted = delete_article(article_id)
         
-        # Would also remove from database in real implementation
-        st.success("Article deleted successfully!")
+        # Remove file if database deletion was successful
+        file_deleted = True
+        if database_deleted and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                st.warning(f"Database record deleted but file removal failed: {e}")
+                file_deleted = False
+        
+        return database_deleted and file_deleted
         
     except Exception as e:
         st.error(f"Error deleting article: {e}")
+        return False
 
 def display_knowledge_base_management():
     """Display knowledge base management interface"""
