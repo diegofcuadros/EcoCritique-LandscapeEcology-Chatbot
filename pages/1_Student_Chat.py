@@ -76,11 +76,18 @@ def main():
             # Load article content
             if st.button("Load Article", use_container_width=True):
                 try:
-                    # Use the correct method that exists in ArticleProcessor
-                    success = article_processor.process_article_from_file(
-                        selected_article['file_path'], 
-                        selected_article['title']
-                    )
+                    # Simple, reliable approach - read file and process text
+                    with open(selected_article['file_path'], 'rb') as file:
+                        pdf_reader = PyPDF2.PdfReader(file)
+                        article_text = ""
+                        for page in pdf_reader.pages:
+                            article_text += page.extract_text()
+                        
+                        # Use the process_article_text method which should exist
+                        success = article_processor.process_article_text(
+                            article_text, 
+                            selected_article['title']
+                        )
                     
                     if success:
                         st.success("Article loaded and processed successfully!")
@@ -90,6 +97,9 @@ def main():
                         
                 except Exception as e:
                     st.error(f"Error loading article: {e}")
+                    # Debug information
+                    st.error(f"ArticleProcessor type: {type(article_processor)}")
+                    st.error(f"Available methods: {[m for m in dir(article_processor) if not m.startswith('_')]}")
         else:
             st.warning("No articles available. Please contact your instructor.")
             
