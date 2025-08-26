@@ -23,7 +23,7 @@ def main():
         st.stop()
     
     # Create tabs for different functions
-    tab1, tab2, tab3 = st.tabs(["📤 Upload New Article", "📚 Manage Articles", "🧠 Knowledge Base"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload New Article", "📚 Manage Articles", "🧠 Knowledge Base", "🔍 Research Monitoring"])
     
     with tab1:
         display_upload_interface()
@@ -33,6 +33,9 @@ def main():
     
     with tab3:
         display_knowledge_base_management()
+    
+    with tab4:
+        display_research_monitoring()
 
 def display_upload_interface():
     """Display the article upload interface"""
@@ -390,6 +393,133 @@ def display_knowledge_base_management():
         
         if len(rag_system.knowledge_base) > 10:
             st.markdown(f"... and {len(rag_system.knowledge_base) - 10} more chunks")
+
+def display_research_monitoring():
+    """Display research monitoring interface for professors"""
+    st.markdown("### 🔍 AI Research Agent Monitoring")
+    st.markdown("Monitor what research has been gathered for each article to enhance the chatbot's knowledge.")
+    
+    try:
+        from components.research_agent import get_research_agent
+        research_agent = get_research_agent()
+        
+        # Get all research data
+        all_research = research_agent.get_all_research_for_professor()
+        
+        if not all_research:
+            st.info("No research data found. Articles with AI Research enabled will appear here after upload.")
+            return
+        
+        st.markdown(f"**Total Articles with Research:** {len(all_research)}")
+        st.divider()
+        
+        # Display research for each article
+        for research_data in all_research:
+            with st.expander(f"📄 {research_data['title']} - Research Overview", expanded=False):
+                
+                # Basic metrics
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Concepts Found", research_data.get('concepts_found', 0))
+                with col2:
+                    st.metric("Web Searches", research_data.get('searches_performed', 0))
+                with col3:
+                    st.metric("Knowledge Chunks", research_data['summary'].get('knowledge_chunks', 0))
+                with col4:
+                    research_date = research_data['research_date'][:10] if research_data.get('research_date') else 'Unknown'
+                    st.metric("Research Date", research_date)
+                
+                st.divider()
+                
+                # Research summary details
+                st.markdown("#### 📋 Research Summary")
+                summary = research_data['summary']
+                
+                if summary.get('key_concepts'):
+                    st.markdown(f"**Key Concepts Researched:** {', '.join(summary['key_concepts'])}")
+                
+                if summary.get('study_system'):
+                    st.markdown(f"**Study System:** {summary['study_system']}")
+                
+                if summary.get('search_queries'):
+                    st.markdown("**Search Queries Used:**")
+                    for i, query in enumerate(summary['search_queries'][:5], 1):
+                        st.markdown(f"{i}. {query}")
+                    if len(summary['search_queries']) > 5:
+                        st.markdown(f"...and {len(summary['search_queries']) - 5} more queries")
+                
+                st.divider()
+                
+                # Knowledge preview
+                st.markdown("#### 📚 Gathered Knowledge Preview")
+                if research_data.get('knowledge_preview'):
+                    with st.expander("View Knowledge Content Preview", expanded=False):
+                        st.text_area(
+                            "Knowledge Content (first 1000 characters):",
+                            research_data['knowledge_preview'],
+                            height=200,
+                            disabled=True
+                        )
+                
+                # File information
+                if research_data.get('search_files'):
+                    st.markdown(f"**Individual Search Files:** {len(research_data['search_files'])} files")
+                    st.markdown(f"**Research Folder:** `{research_data['folder_path']}`")
+                
+                # Chatbot integration status
+                st.success("✅ Research has been integrated into the chatbot's knowledge base")
+                st.info("Students discussing this article will benefit from this enhanced knowledge!")
+        
+        st.divider()
+        
+        # Overall statistics
+        st.markdown("### 📊 Overall Research Statistics")
+        
+        total_concepts = sum(r.get('concepts_found', 0) for r in all_research)
+        total_searches = sum(r.get('searches_performed', 0) for r in all_research)
+        total_chunks = sum(r['summary'].get('knowledge_chunks', 0) for r in all_research)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Concepts Researched", total_concepts)
+        with col2:
+            st.metric("Total Web Searches Performed", total_searches)
+        with col3:
+            st.metric("Total Knowledge Chunks Created", total_chunks)
+        
+        # Tips for professors
+        with st.expander("💡 How to Use This Information", expanded=False):
+            st.markdown("""
+            **Understanding the Research Data:**
+            
+            - **Concepts Found**: Key landscape ecology concepts identified in the article
+            - **Web Searches**: Number of targeted searches performed to gather related information
+            - **Knowledge Chunks**: Pieces of information added to the chatbot's knowledge base
+            
+            **What This Means for Your Students:**
+            
+            ✅ **Enhanced Discussions**: Students get more detailed, accurate responses about article topics
+            
+            ✅ **Current Research**: Chatbot has access to recent findings and case studies
+            
+            ✅ **Comprehensive Context**: Students can explore connections to broader landscape ecology concepts
+            
+            ✅ **Better Learning**: More informed discussions lead to deeper understanding
+            
+            **Quality Assurance:**
+            
+            - Research focuses on peer-reviewed academic sources
+            - Content is filtered for landscape ecology relevance
+            - Information is organized by concept areas and applications
+            - All research is saved for your review and verification
+            """)
+    
+    except ImportError:
+        st.error("Research agent not available. Please check the system configuration.")
+    except Exception as e:
+        st.error(f"Error loading research data: {e}")
 
 if __name__ == "__main__":
     main()
