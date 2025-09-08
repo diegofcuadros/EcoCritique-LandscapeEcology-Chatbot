@@ -28,9 +28,11 @@ class SocraticChatEngine:
             st.error(f"Error loading prompts: {e}")
             self.prompts = {}
             
-        self.client = Anthropic(api_key=st.secrets["anthropic"]["api_key"])
+        # self.client = Anthropic(api_key=st.secrets["anthropic"]["api_key"]) # Temporarily commented out for debugging
+        self.client = None # Add a placeholder
         self.model = "claude-3-opus-20240229"
         self.temperature = 0.5
+        self.max_tokens = 4000
     
     def load_prompts(self):
         """Load Socratic questioning prompts from JSON file"""
