@@ -6,7 +6,10 @@ import requests
 import time
 import os
 import re
-from anthropic import Anthropic
+try:
+    from anthropic import Anthropic  # Optional
+except Exception:
+    Anthropic = None
 from components.gis_question_templates import get_gis_template
 
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
