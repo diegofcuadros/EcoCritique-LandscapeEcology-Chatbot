@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Any
 import json
 import re
+from components.database import DATABASE_PATH
 
 class AssessmentQualitySystem:
     """Automated assessment and grading system for student engagement"""
@@ -107,7 +108,7 @@ class AssessmentQualitySystem:
     
     def initialize_assessment_tables(self):
         """Create tables for assessment tracking"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Rubric scores table
@@ -250,7 +251,7 @@ class AssessmentQualitySystem:
     
     def evaluate_session_rubric(self, student_id: str, session_id: int) -> Dict[str, Any]:
         """Evaluate a complete session using the rubric"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Get session messages
@@ -437,7 +438,7 @@ class AssessmentQualitySystem:
         """Generate a weekly progress report for a student"""
         week_end = week_start + timedelta(days=7)
         
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Get sessions for the week
@@ -575,7 +576,7 @@ class AssessmentQualitySystem:
     
     def display_quality_metrics(self, student_id: str):
         """Display participation quality metrics"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Get recent quality metrics
@@ -672,7 +673,7 @@ class AssessmentQualitySystem:
                         st.warning(f"→ {improvement}")
         
         # Show historical reports
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         query = """
             SELECT student_id, week_start, week_end, sessions_completed,
                    avg_quality_score, cognitive_progress
@@ -697,7 +698,7 @@ class AssessmentQualitySystem:
     
     def get_class_assessment_overview(self) -> pd.DataFrame:
         """Get assessment overview for entire class"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         
         query = """
             SELECT 

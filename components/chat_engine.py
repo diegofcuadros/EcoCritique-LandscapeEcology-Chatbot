@@ -4,16 +4,33 @@ from datetime import datetime
 from typing import List, Dict, Any
 import requests
 import time
+import os
+import re
+from anthropic import Anthropic
+from components.gis_question_templates import get_gis_template
+
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, '..'))
+PROMPTS_FILE_PATH = os.path.join(_PROJECT_ROOT, 'data', 'socratic_prompts.json')
 
 class SocraticChatEngine:
-    def __init__(self):
-        self.conversation_levels = {
-            1: "comprehension",    # Basic understanding
-            2: "analysis",         # Deeper examination  
-            3: "synthesis",        # Integration with other concepts
-            4: "evaluation"        # Critical assessment
-        }
-        self.load_prompts()
+    """A Socratic chat engine for discussing landscape ecology articles."""
+    
+    def __init__(self, article_text: str, student_info: Dict[str, Any], article_title: str):
+        self.article_text = article_text
+        self.student_info = student_info
+        self.article_title = article_title
+        
+        try:
+            with open(PROMPTS_FILE_PATH, 'r') as f:
+                self.prompts = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            st.error(f"Error loading prompts: {e}")
+            self.prompts = {}
+            
+        self.client = Anthropic(api_key=st.secrets["anthropic"]["api_key"])
+        self.model = "claude-3-opus-20240229"
+        self.temperature = 0.5
     
     def load_prompts(self):
         """Load Socratic questioning prompts from JSON file"""

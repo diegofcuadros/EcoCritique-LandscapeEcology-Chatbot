@@ -10,6 +10,7 @@ import sqlite3
 from datetime import datetime
 import json
 import random
+from components.database import DATABASE_PATH
 
 class StudentEngagementSystem:
     def __init__(self):
@@ -33,7 +34,7 @@ class StudentEngagementSystem:
     
     def initialize_engagement_tables(self):
         """Create tables for engagement tracking"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Check if student_progress table exists with correct schema
@@ -107,7 +108,7 @@ class StudentEngagementSystem:
         # Ensure tables exist
         self.initialize_engagement_tables()
         
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         try:
@@ -149,7 +150,7 @@ class StudentEngagementSystem:
     
     def initialize_student(self, student_id: str):
         """Initialize a new student's progress"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         cursor.execute("""
@@ -163,7 +164,7 @@ class StudentEngagementSystem:
     
     def update_progress(self, student_id: str, message_count: int, concepts: List[str] = None):
         """Update student's cognitive level and progress"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Get current progress
@@ -220,7 +221,7 @@ class StudentEngagementSystem:
             new_badges.append("concept_connector")
         
         # Persistent Scholar - check session duration
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT MAX(duration_minutes) 
@@ -434,7 +435,7 @@ class StudentEngagementSystem:
     
     def save_concept_connections(self, student_id: str, concepts: List[str], article_title: str):
         """Save concept connections to database"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Save connections between concepts
@@ -451,7 +452,7 @@ class StudentEngagementSystem:
     
     def save_peer_insight(self, question: str, article_title: str, cognitive_level: int):
         """Save a good question for peer learning"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         cursor.execute("""
@@ -467,7 +468,7 @@ class StudentEngagementSystem:
         st.markdown("### 💭 Peer Insights")
         st.caption("Thoughtful questions from fellow students (anonymous)")
         
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         query = """
@@ -505,7 +506,7 @@ class StudentEngagementSystem:
     
     def upvote_insight(self, question: str):
         """Upvote a peer insight"""
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         cursor.execute("""

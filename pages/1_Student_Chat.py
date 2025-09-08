@@ -3,7 +3,7 @@ from datetime import datetime
 from components.auth import is_authenticated, get_current_user
 from components.chat_engine import SocraticChatEngine, initialize_chat_session, add_message, get_chat_history, calculate_session_duration
 from components.rag_system import get_rag_system, get_article_processor
-from components.database import save_chat_session, get_articles
+from components.database import save_chat_session, get_articles, DATABASE_PATH
 from components.student_engagement import StudentEngagementSystem
 from components.assessment_quality import AssessmentQualitySystem
 import PyPDF2
@@ -313,7 +313,7 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         
         # Store quality metrics in database
         import sqlite3
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
         # Ensure quality_metrics table exists

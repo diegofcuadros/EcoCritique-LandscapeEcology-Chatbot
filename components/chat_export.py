@@ -8,12 +8,13 @@ import streamlit as st
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import io
+from components.database import DATABASE_PATH
 
 class ChatExportSystem:
     """Export student chat conversations to various text formats"""
     
     def __init__(self):
-        self.database_path = "data/chatbot_interactions.db"
+        self.database_path = DATABASE_PATH
     
     def export_individual_chat_transcript(self, session_id: str, format_type: str = "markdown") -> str:
         """Export a single chat session to text or markdown format"""

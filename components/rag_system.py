@@ -6,6 +6,11 @@ import pickle
 from datetime import datetime
 import re
 
+# Construct absolute path to the knowledge base file
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, '..'))
+KB_FILE_PATH = os.path.join(_PROJECT_ROOT, 'data', 'landscape_ecology_kb.txt')
+
 class LandscapeEcologyRAG:
     def __init__(self):
         self.knowledge_base = []
@@ -14,23 +19,14 @@ class LandscapeEcologyRAG:
         self.load_additional_sources()
     
     def load_knowledge_base(self):
-        """Load landscape ecology knowledge base"""
+        """Load landscape ecology knowledge base from text file"""
         try:
-            # Load from text file
-            with open('data/landscape_ecology_kb.txt', 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Split into chunks (paragraphs or sections)
-            chunks = [chunk.strip() for chunk in content.split('\n\n') if chunk.strip()]
-            self.knowledge_base = chunks
-            
-            # Initialize simple text search indices
-            self._build_search_index()
-                
+            with open(KB_FILE_PATH, 'r', encoding='utf-8') as f:
+                self.knowledge_base = f.read()
         except FileNotFoundError:
-            st.warning("Knowledge base file not found. Using minimal default knowledge.")
-            self._create_default_knowledge()
-    
+            self.knowledge_base = "Knowledge base not found."
+            st.warning("Knowledge base file not found. Using a default empty base.")
+            
     def _create_default_knowledge(self):
         """Create a minimal default knowledge base"""
         self.knowledge_base = [

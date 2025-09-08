@@ -12,12 +12,13 @@ import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+from components.database import DATABASE_PATH
 
 class GradingExportSystem:
     """Enhanced system for exporting student interactions and assessments for grading"""
     
     def __init__(self):
-        self.database_path = "data/chatbot_interactions.db"
+        self.database_path = DATABASE_PATH
         
         # Grade scale mapping
         self.grade_mapping = {

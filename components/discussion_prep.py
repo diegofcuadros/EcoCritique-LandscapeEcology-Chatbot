@@ -10,12 +10,13 @@ from typing import Dict, List, Any, Tuple
 import streamlit as st
 import re
 from collections import Counter
+from components.database import DATABASE_PATH
 
 class DiscussionPrepSystem:
     """Generates discussion points for in-class sessions based on student chat interactions"""
     
     def __init__(self):
-        self.database_path = "data/chatbot_interactions.db"
+        self.database_path = DATABASE_PATH
         
         # Key themes for landscape ecology discussions
         self.discussion_themes = {

@@ -6,7 +6,7 @@ import sqlite3
 import json
 from datetime import datetime, timedelta
 from components.auth import is_authenticated, get_current_user
-from components.database import get_student_analytics, get_chat_sessions, get_chat_messages, export_interactions_csv
+from components.database import get_student_analytics, get_chat_sessions, get_chat_messages, export_interactions_csv, DATABASE_PATH
 from components.assessment_quality import AssessmentQualitySystem
 from components.discussion_prep import DiscussionPrepSystem
 from components.grading_export import GradingExportSystem
@@ -253,63 +253,28 @@ def display_overview_metrics():
     st.markdown("### 🎯 Student Engagement Metrics")
     
     # Get engagement statistics from database
-    conn = sqlite3.connect('data/chatbot_interactions.db')
-    cursor = conn.cursor()
+    conn = sqlite3.connect(DATABASE_PATH)
+    engagement_df = pd.read_sql_query("SELECT * FROM student_progress", conn)
+    conn.close()
     
-    try:
-        # First ensure tables exist
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS student_progress (
-                student_id TEXT PRIMARY KEY,
-                current_level INTEGER DEFAULT 1,
-                total_interactions INTEGER DEFAULT 0,
-                badges_earned TEXT DEFAULT '[]',
-                concepts_explored TEXT DEFAULT '[]',
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS peer_insights (
-                insight_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                question TEXT NOT NULL,
-                article_title TEXT,
-                cognitive_level INTEGER,
-                upvotes INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_featured BOOLEAN DEFAULT 0
-            )
-        """)
-        
-        conn.commit()
-        
+    if not engagement_df.empty:
         # Count students with badges
-        cursor.execute("""SELECT COUNT(*) FROM student_progress WHERE badges_earned != '[]'""")
-        result = cursor.fetchone()
-        students_with_badges = result[0] if result else 0
+        students_with_badges = len(engagement_df[engagement_df['badges_earned'] != '[]'])
         
         # Count peer insights
-        cursor.execute("SELECT COUNT(*) FROM peer_insights")
-        result = cursor.fetchone()
-        total_insights = result[0] if result else 0
+        total_insights = len(pd.read_sql_query("SELECT COUNT(*) FROM peer_insights", conn))
         
         # Average cognitive level
-        cursor.execute("SELECT AVG(current_level) FROM student_progress WHERE current_level > 0")
-        result = cursor.fetchone()
-        avg_level = result[0] if result and result[0] else 1.0
+        avg_level = engagement_df['current_level'].mean() if not engagement_df['current_level'].empty else 1.0
         
         # Count students exploring concepts
-        cursor.execute("SELECT COUNT(*) FROM student_progress WHERE concepts_explored != '[]'")
-        result = cursor.fetchone()
-        students_with_concepts = result[0] if result else 0
+        students_with_concepts = len(engagement_df[engagement_df['concepts_explored'] != '[]'])
         
-    except Exception as e:
+    else:
         students_with_badges = 0
         total_insights = 0
         avg_level = 1.0
         students_with_concepts = 0
-    finally:
-        conn.close()
     
     eng_col1, eng_col2, eng_col3, eng_col4 = st.columns(4)
     
@@ -721,7 +686,7 @@ def display_assessment_quality(assessment_system):
     # Individual student assessment
     st.markdown("#### Individual Student Assessment")
     
-    conn = sqlite3.connect('data/chatbot_interactions.db')
+    conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT DISTINCT cs.user_id, cs.session_id, cs.article_title, cs.start_time
@@ -767,7 +732,7 @@ def display_weekly_reports(assessment_system):
     
     with col1:
         # Select student
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT DISTINCT user_id FROM chat_sessions ORDER BY user_id")
         students = [row[0] for row in cursor.fetchall()]
@@ -841,7 +806,7 @@ def display_weekly_reports(assessment_system):
     st.markdown("#### Export Weekly Reports")
     
     if st.button("Export All Weekly Reports to Excel", use_container_width=True):
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         query = """
             SELECT 
                 student_id,
@@ -1032,7 +997,7 @@ def display_enhanced_grading(grading_export, assessment_system):
         st.markdown("#### 👤 Individual Student Detailed Report")
         
         # Get student list
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT DISTINCT user_id FROM chat_sessions WHERE user_type = 'Student' ORDER BY user_id")
         students = [row[0] for row in cursor.fetchall()]
@@ -1109,7 +1074,7 @@ def display_enhanced_grading(grading_export, assessment_system):
         st.markdown("Specialized assessment focusing on GIS concepts and spatial thinking skills")
         
         # Get recent sessions with spatial content
-        conn = sqlite3.connect('data/chatbot_interactions.db')
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT s.session_id, s.user_id, s.article_title, s.start_time,
@@ -1144,7 +1109,7 @@ def display_enhanced_grading(grading_export, assessment_system):
                 with st.spinner("Analyzing spatial reasoning capabilities..."):
                     try:
                         # Get session messages
-                        conn = sqlite3.connect('data/chatbot_interactions.db')
+                        conn = sqlite3.connect(DATABASE_PATH)
                         cursor = conn.cursor()
                         cursor.execute("""
                             SELECT role, content FROM chat_messages 

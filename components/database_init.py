@@ -5,14 +5,15 @@ Database Initialization - Ensure all required tables exist with correct schema
 import sqlite3
 import streamlit as st
 import os
+from components.database import DATABASE_PATH
 
 def initialize_database():
     """Initialize all required database tables"""
     
     # Ensure data directory exists
-    os.makedirs('data', exist_ok=True)
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     
-    conn = sqlite3.connect('data/chatbot_interactions.db')
+    conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
     try:
@@ -153,20 +154,16 @@ def initialize_database():
 def check_database_health():
     """Check if database exists and has all required tables"""
     
-    if not os.path.exists('data/chatbot_interactions.db'):
-        return False, "Database file does not exist"
-    
-    conn = sqlite3.connect('data/chatbot_interactions.db')
-    cursor = conn.cursor()
-    
-    required_tables = [
-        'chat_sessions', 'chat_messages', 'articles', 'student_progress',
-        'peer_insights', 'concept_connections', 'rubric_evaluations',
-        'quality_metrics', 'weekly_reports'
-    ]
+    if not os.path.exists(DATABASE_PATH):
+        return False, "Database file not found."
+        
+    required_tables = ["users", "articles", "chat_sessions", "chat_messages"]
     
     try:
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         existing_tables = [row[0] for row in cursor.fetchall()]
         
         missing_tables = [table for table in required_tables if table not in existing_tables]
