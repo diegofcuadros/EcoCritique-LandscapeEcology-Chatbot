@@ -6,7 +6,8 @@ import PyPDF2
 import io
 from components.auth import is_authenticated, get_current_user
 from components.database import save_article, get_articles, delete_article, update_article_status
-from components.rag_system import get_rag_system
+# Delayed import to avoid initialization issues
+# from components.rag_system import get_rag_system
 
 st.set_page_config(page_title="Article Upload", page_icon="📤", layout="wide")
 
@@ -161,8 +162,12 @@ def upload_article(uploaded_file, title, week_number, objectives, concepts, enab
             
             # Add to knowledge base if concepts provided
             if concepts.strip():
-                rag_system = get_rag_system()
-                rag_system.add_to_knowledge_base(f"Article: {title}\nKey concepts: {concepts}")
+                try:
+                    from components.rag_system import get_rag_system
+                    rag_system = get_rag_system()
+                    rag_system.add_to_knowledge_base(f"Article: {title}\nKey concepts: {concepts}")
+                except Exception as e:
+                    st.warning(f"Could not update knowledge base: {str(e)[:50]}...")
             
             # Run AI Research Agent if enabled
             if enable_research:
@@ -182,18 +187,25 @@ def upload_article(uploaded_file, title, week_number, objectives, concepts, enab
                             f"week{week_number}_{article_id}"
                         )
                         
-                        st.success("🤖 Research Agent completed!")
-                        st.info(f"""
+                        if research_results and research_results.get('success', False):
+                            st.success("🤖 Research Agent completed!")
+                            st.info(f"""
 **Research Summary:**
-- 📁 Research folder: `{research_results['folder_path']}`
-- 🔍 Concepts analyzed: {research_results['concepts_found']}
-- 🌐 Web searches performed: {research_results['searches_performed']}
-- 📚 Knowledge chunks created: {research_results['knowledge_chunks_created']}
+- 📁 Research folder: `{research_results.get('folder_path', 'N/A')}`
+- 🔍 Concepts analyzed: {research_results.get('concepts_found', 'N/A')}
+- 🌐 Web searches performed: {research_results.get('searches_performed', 'N/A')}
+- 📚 Knowledge chunks created: {research_results.get('knowledge_chunks_created', 'N/A')}
 
 The AI chatbot now has enhanced knowledge about this article!
-                        """)
+                            """)
+                        else:
+                            st.warning("🤖 Research Agent completed but no results were returned.")
+                            st.info("Article uploaded successfully, but additional research was not available.")
+                    except ImportError:
+                        st.warning("🔧 Research Agent is not available in this deployment.")
+                        st.info("Article uploaded successfully. Research features can be added later.")
                     except Exception as e:
-                        st.warning(f"Research agent encountered an issue: {str(e)}")
+                        st.warning(f"🔍 Research Agent encountered an issue: {str(e)[:100]}...")
                         st.info("Article uploaded successfully, but additional research could not be completed.")
             
             # Show preview
@@ -338,61 +350,78 @@ def display_knowledge_base_management():
     st.markdown("### Knowledge Base Management")
     st.markdown("Manage the landscape ecology knowledge base that guides the AI tutor.")
     
-    rag_system = get_rag_system()
-    
-    # Display current knowledge base stats
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("Knowledge Chunks", len(rag_system.knowledge_base))
-    
-    with col2:
-        st.metric("Search Index Status", "Ready" if hasattr(rag_system, 'search_index') else "Not Ready")
-    
-    # Add new knowledge
-    st.markdown("#### Add New Knowledge")
-    
-    with st.form("knowledge_form"):
-        new_knowledge = st.text_area(
-            "Add landscape ecology content:",
-            placeholder="Enter new concepts, definitions, or explanations that the AI should know about...",
-            height=150,
-            help="Add new knowledge that will help the AI provide better guidance to students"
+    try:
+        from components.rag_system import get_rag_system
+        rag_system = get_rag_system()
+        
+        # Display current knowledge base stats
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Knowledge Chunks", len(rag_system.knowledge_base))
+        
+        with col2:
+            st.metric("Search Index Status", "Ready" if hasattr(rag_system, 'search_index') else "Not Ready")
+        
+        # Add new knowledge
+        st.markdown("#### Add New Knowledge")
+        
+        with st.form("knowledge_form"):
+            new_knowledge = st.text_area(
+                "Add landscape ecology content:",
+                placeholder="Enter new concepts, definitions, or explanations that the AI should know about...",
+                height=150,
+                help="Add new knowledge that will help the AI provide better guidance to students"
+            )
+            
+            if st.form_submit_button("Add to Knowledge Base"):
+                if new_knowledge.strip():
+                    try:
+                        rag_system.add_to_knowledge_base(new_knowledge)
+                        st.success("Knowledge added successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error adding knowledge: {str(e)[:50]}...")
+                else:
+                    st.error("Please enter some content to add.")
+        
+        # Test knowledge retrieval
+        st.markdown("#### Test Knowledge Retrieval")
+        
+        test_query = st.text_input(
+            "Test query:",
+            placeholder="Enter a question to test knowledge retrieval...",
+            help="Test how well the knowledge base responds to student questions"
         )
         
-        if st.form_submit_button("Add to Knowledge Base"):
-            if new_knowledge.strip():
-                rag_system.add_to_knowledge_base(new_knowledge)
-                st.success("Knowledge added successfully!")
-                st.rerun()
-            else:
-                st.error("Please enter some content to add.")
-    
-    # Test knowledge retrieval
-    st.markdown("#### Test Knowledge Retrieval")
-    
-    test_query = st.text_input(
-        "Test query:",
-        placeholder="Enter a question to test knowledge retrieval...",
-        help="Test how well the knowledge base responds to student questions"
-    )
-    
-    if test_query:
-        relevant_knowledge = rag_system.search_knowledge(test_query)
+        if test_query:
+            try:
+                relevant_knowledge = rag_system.search_knowledge(test_query)
+                with st.expander("Retrieved Knowledge", expanded=True):
+                    st.markdown(relevant_knowledge)
+            except Exception as e:
+                st.error(f"Error searching knowledge: {str(e)[:50]}...")
         
-        with st.expander("Retrieved Knowledge", expanded=True):
-            st.markdown(relevant_knowledge)
+        # Knowledge base preview
+        if st.checkbox("Show Knowledge Base Preview"):
+            st.markdown("#### Current Knowledge Base")
+            
+            try:
+                for i, chunk in enumerate(rag_system.knowledge_base[:10]):  # Show first 10 chunks
+                    with st.expander(f"Chunk {i+1}", expanded=False):
+                        st.markdown(chunk)
+                
+                if len(rag_system.knowledge_base) > 10:
+                    st.markdown(f"... and {len(rag_system.knowledge_base) - 10} more chunks")
+            except Exception as e:
+                st.error(f"Error displaying knowledge base: {str(e)[:50]}...")
     
-    # Knowledge base preview
-    if st.checkbox("Show Knowledge Base Preview"):
-        st.markdown("#### Current Knowledge Base")
-        
-        for i, chunk in enumerate(rag_system.knowledge_base[:10]):  # Show first 10 chunks
-            with st.expander(f"Chunk {i+1}", expanded=False):
-                st.markdown(chunk)
-        
-        if len(rag_system.knowledge_base) > 10:
-            st.markdown(f"... and {len(rag_system.knowledge_base) - 10} more chunks")
+    except ImportError:
+        st.error("🔧 Knowledge base system is not available.")
+        st.info("Please check the system configuration.")
+    except Exception as e:
+        st.error(f"🚨 Error loading knowledge base management: {str(e)[:100]}...")
+        st.info("Please contact administrator if this persists.")
 
 def display_research_monitoring():
     """Display research monitoring interface for professors"""
@@ -402,6 +431,12 @@ def display_research_monitoring():
     try:
         from components.research_agent import get_research_agent
         research_agent = get_research_agent()
+        
+        # Check if the method exists
+        if not hasattr(research_agent, 'get_all_research_for_professor'):
+            st.warning("🔧 Research monitoring feature is not yet implemented.")
+            st.info("This feature will show research data gathered by the AI Research Agent for each article.")
+            return
         
         # Get all research data
         all_research = research_agent.get_all_research_for_professor()
