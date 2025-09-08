@@ -33,8 +33,18 @@ class SocraticChatEngine:
         except Exception:
             self.prompts = {}
             
-        # self.client = Anthropic(api_key=st.secrets["anthropic"]["api_key"]) # Temporarily commented out for debugging
-        self.client = None
+        # Initialize Anthropic client with graceful fallback
+        try:
+            anthropic_key = os.environ.get('ANTHROPIC_API_KEY') or st.secrets.get('ANTHROPIC_API_KEY')
+            if anthropic_key and Anthropic:
+                self.client = Anthropic(api_key=anthropic_key)
+            else:
+                self.client = None
+                if not anthropic_key:
+                    st.info("ℹ️ Anthropic API not configured - using Groq and local AI systems")
+        except Exception as e:
+            self.client = None
+            st.warning(f"Anthropic client initialization failed: {str(e)[:100]}...")
         self.model = "claude-3-opus-20240229"
         self.temperature = 0.5
         self.max_tokens = 4000

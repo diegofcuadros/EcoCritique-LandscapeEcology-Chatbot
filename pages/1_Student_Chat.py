@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+import time
 from datetime import datetime
 from components.auth import is_authenticated, get_current_user
 from components.chat_engine import SocraticChatEngine, initialize_chat_session, add_message, get_chat_history, calculate_session_duration
@@ -75,31 +77,123 @@ def main():
             
             # Load article content
             if st.button("Load Article", use_container_width=True):
-                try:
-                    # Simple, reliable approach - read file and process text
-                    with open(selected_article['file_path'], 'rb') as file:
-                        pdf_reader = PyPDF2.PdfReader(file)
-                        article_text = ""
-                        for page in pdf_reader.pages:
-                            article_text += page.extract_text()
+                def load_article_safely(file_path, title):
+                    """Safely load and process article with comprehensive error handling"""
+                    try:
+                        # Check if file exists
+                        if not os.path.exists(file_path):
+                            st.error(f"📄 Article file not found: {file_path}")
+                            return False
                         
-                        # Use the process_article_text method which should exist
-                        success = article_processor.process_article_text(
-                            article_text, 
-                            selected_article['title']
-                        )
-                    
-                    if success:
-                        st.success("Article loaded and processed successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to process article. Please check the file format.")
+                        # Check file size
+                        file_size = os.path.getsize(file_path)
+                        if file_size == 0:
+                            st.error("📄 Article file appears to be empty")
+                            return False
+                        elif file_size > 50 * 1024 * 1024:  # 50MB limit
+                            st.error("📄 Article file is too large (>50MB)")
+                            return False
                         
-                except Exception as e:
-                    st.error(f"Error loading article: {e}")
-                    # Debug information
-                    st.error(f"ArticleProcessor type: {type(article_processor)}")
-                    st.error(f"Available methods: {[m for m in dir(article_processor) if not m.startswith('_')]}")
+                        # Progress indicator
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        # Read and process PDF
+                        status_text.text("📖 Reading PDF file...")
+                        progress_bar.progress(0.2)
+                        
+                        with open(file_path, 'rb') as file:
+                            try:
+                                pdf_reader = PyPDF2.PdfReader(file)
+                                total_pages = len(pdf_reader.pages)
+                                
+                                if total_pages == 0:
+                                    st.error("📄 PDF appears to have no pages")
+                                    return False
+                                
+                                status_text.text(f"📄 Processing {total_pages} pages...")
+                                progress_bar.progress(0.4)
+                                
+                                article_text = ""
+                                successful_pages = 0
+                                
+                                for i, page in enumerate(pdf_reader.pages):
+                                    try:
+                                        page_text = page.extract_text()
+                                        if page_text.strip():  # Only add non-empty pages
+                                            article_text += f"\n--- Page {i+1} ---\n{page_text}"
+                                            successful_pages += 1
+                                        
+                                        # Update progress
+                                        progress = 0.4 + (0.4 * (i + 1) / total_pages)
+                                        progress_bar.progress(progress)
+                                        
+                                    except Exception as e:
+                                        st.warning(f"⚠️ Could not extract text from page {i+1}: {str(e)[:100]}")
+                                        continue
+                                
+                                if len(article_text.strip()) < 100:
+                                    st.error(f"📄 PDF text extraction yielded insufficient content ({len(article_text)} characters). The PDF might be image-based or corrupted.")
+                                    return False
+                                
+                                if successful_pages == 0:
+                                    st.error("📄 No readable pages found in PDF")
+                                    return False
+                                
+                                status_text.text("🤖 Processing with AI research agent...")
+                                progress_bar.progress(0.8)
+                                
+                                # Process with article processor
+                                if hasattr(article_processor, 'process_article_text'):
+                                    success = article_processor.process_article_text(article_text, title)
+                                elif hasattr(article_processor, 'process_article'):
+                                    success = article_processor.process_article(article_text, title)
+                                else:
+                                    st.warning("🔧 Article processor method not found - using basic processing")
+                                    # Store article text directly in session state as fallback
+                                    st.session_state.current_article_text = article_text
+                                    st.session_state.current_article_title = title
+                                    success = True
+                                
+                                progress_bar.progress(1.0)
+                                status_text.text("✅ Article processing complete!")
+                                
+                                # Clean up progress indicators after a moment
+                                import time
+                                time.sleep(1)
+                                progress_bar.empty()
+                                status_text.empty()
+                                
+                                return success
+                                
+                            except PyPDF2.PdfReadError as e:
+                                st.error(f"📄 PDF reading error: {str(e)[:100]}. The file might be corrupted or password-protected.")
+                                return False
+                            except Exception as e:
+                                st.error(f"📄 Unexpected PDF processing error: {str(e)[:100]}")
+                                return False
+                        
+                    except FileNotFoundError:
+                        st.error(f"📁 Article file not found: {file_path}")
+                        st.info("💡 Please contact your instructor to upload this article.")
+                        return False
+                    except PermissionError:
+                        st.error(f"🔒 Permission denied accessing: {file_path}")
+                        return False
+                    except Exception as e:
+                        st.error(f"🚨 Unexpected error loading article: {str(e)[:200]}")
+                        st.info("💡 Please try refreshing the page or contact your instructor if this persists.")
+                        return False
+                
+                # Call the safe loading function
+                success = load_article_safely(selected_article['file_path'], selected_article['title'])
+                
+                if success:
+                    st.success("🎉 Article loaded and processed successfully!")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ Article loading failed. Please try a different article or contact your instructor.")
         else:
             st.warning("No articles available. Please contact your instructor.")
             

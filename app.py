@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import sys
 from components.auth import initialize_auth, check_authentication
-# from components.database import initialize_database # This is not needed and is superseded by the init_all_tables import
 from components.database_init import initialize_database as init_all_tables
 
 # Page configuration
@@ -55,7 +54,6 @@ st.markdown("""
 def main():
     try:
         # Initialize database and authentication
-        # initialize_database() # This was the redundant call. It is now removed.
         init_all_tables()  # This function correctly ensures all tables exist with the right schema.
         initialize_auth()
         

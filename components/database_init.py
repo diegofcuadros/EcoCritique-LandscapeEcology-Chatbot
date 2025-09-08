@@ -142,6 +142,16 @@ def initialize_database():
             )
         """)
         
+        # Add performance indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_user ON chat_sessions(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_created ON chat_sessions(created_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_articles_active ON articles(is_active)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_articles_week ON articles(week_number)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_progress_student ON student_progress(student_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_insights_article ON peer_insights(article_title)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rubric_student ON rubric_evaluations(student_id)")
+        
         conn.commit()
         return True
         
@@ -157,7 +167,7 @@ def check_database_health():
     if not os.path.exists(DATABASE_PATH):
         return False, "Database file not found."
         
-    required_tables = ["users", "articles", "chat_sessions", "chat_messages"]
+    required_tables = ["articles", "chat_sessions", "chat_messages", "student_progress"]
     
     try:
         conn = sqlite3.connect(DATABASE_PATH)
