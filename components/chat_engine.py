@@ -655,6 +655,11 @@ Always respond with 1-2 engaging questions that help the student explore the con
             # Use real Groq API with Llama 3
             import os
             groq_api_key = os.environ.get('GROQ_API_KEY')
+            if not groq_api_key:
+                try:
+                    groq_api_key = st.secrets.get('GROQ_API_KEY')
+                except Exception:
+                    groq_api_key = None
             
             if groq_api_key:
                 response = requests.post(
