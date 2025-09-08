@@ -10,7 +10,7 @@ try:
     from anthropic import Anthropic  # Optional
 except Exception:
     Anthropic = None
-from components.gis_question_templates import get_gis_template
+from components.gis_question_templates import GISQuestionTemplateSystem
 
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, '..'))
