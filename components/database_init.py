@@ -142,6 +142,55 @@ def initialize_database():
             )
         """)
         
+        # Assignment Questions System
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS assignment_questions (
+                assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER NOT NULL,
+                assignment_title TEXT NOT NULL,
+                assignment_type TEXT DEFAULT 'socratic_reading_analysis',
+                total_word_count TEXT DEFAULT '600-900 words',
+                workflow_steps TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (article_id) REFERENCES articles (id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS assignment_question_details (
+                question_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assignment_id INTEGER NOT NULL,
+                question_number TEXT NOT NULL,
+                question_title TEXT NOT NULL,
+                question_prompt TEXT NOT NULL,
+                learning_objectives TEXT,
+                required_evidence TEXT,
+                word_target TEXT,
+                bloom_level TEXT,
+                key_concepts TEXT,
+                tutoring_prompts TEXT,
+                evidence_guidance TEXT,
+                complexity_score REAL DEFAULT 0.5,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (assignment_id) REFERENCES assignment_questions (assignment_id)
+            )
+        """)
+        
+        # Student Assignment Progress Tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS student_assignment_progress (
+                progress_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id TEXT NOT NULL,
+                assignment_id INTEGER NOT NULL,
+                current_question TEXT,
+                questions_completed TEXT DEFAULT '[]',
+                evidence_found TEXT DEFAULT '[]',
+                writing_readiness_score INTEGER DEFAULT 0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (assignment_id) REFERENCES assignment_questions (assignment_id)
+            )
+        """)
+        
         # Add performance indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_user ON chat_sessions(user_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_created ON chat_sessions(created_at)")
@@ -151,6 +200,9 @@ def initialize_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_progress_student ON student_progress(student_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insights_article ON peer_insights(article_title)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rubric_student ON rubric_evaluations(student_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_assignment_article ON assignment_questions(article_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_question_assignment ON assignment_question_details(assignment_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_progress_student_assignment ON student_assignment_progress(student_id, assignment_id)")
         
         conn.commit()
         return True

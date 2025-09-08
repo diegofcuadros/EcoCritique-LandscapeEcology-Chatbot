@@ -331,3 +331,226 @@ def export_interactions_csv(start_date: str | None = None, end_date: str | None 
         return pd.DataFrame()
     finally:
         conn.close()
+
+
+# Assignment Questions Management Functions
+def save_assignment_questions(article_id: int, assignment_title: str, questions_data: dict) -> int:
+    """Save assignment questions for an article"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Insert assignment record
+        cursor.execute("""
+            INSERT INTO assignment_questions 
+            (article_id, assignment_title, assignment_type, total_word_count, workflow_steps)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            article_id,
+            assignment_title,
+            questions_data.get('assignment_type', 'socratic_reading_analysis'),
+            questions_data.get('total_word_count', '600-900 words'),
+            json.dumps(questions_data.get('workflow_steps', []))
+        ))
+        
+        assignment_id = cursor.lastrowid
+        
+        # Insert individual questions
+        for question in questions_data.get('questions', []):
+            cursor.execute("""
+                INSERT INTO assignment_question_details
+                (assignment_id, question_number, question_title, question_prompt, 
+                 learning_objectives, required_evidence, word_target, bloom_level, key_concepts,
+                 tutoring_prompts, evidence_guidance, complexity_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                assignment_id,
+                question.get('id', ''),
+                question.get('title', ''),
+                question.get('prompt', ''),
+                json.dumps(question.get('learning_objectives', [])),
+                question.get('required_evidence', ''),
+                question.get('word_target', ''),
+                question.get('bloom_level', ''),
+                json.dumps(question.get('key_concepts', [])),
+                json.dumps(question.get('tutoring_prompts', [])),
+                question.get('evidence_guidance', ''),
+                question.get('complexity_score', 0.5)
+            ))
+        
+        conn.commit()
+        return assignment_id
+        
+    except Exception as e:
+        st.error(f"Error saving assignment questions: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def get_assignment_questions(article_id: int) -> dict:
+    """Get assignment questions for a specific article"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    
+    try:
+        # Get assignment info
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT assignment_id, assignment_title, assignment_type, 
+                   total_word_count, workflow_steps
+            FROM assignment_questions
+            WHERE article_id = ?
+        """, (article_id,))
+        
+        assignment_result = cursor.fetchone()
+        if not assignment_result:
+            return {}
+        
+        assignment_id, title, assignment_type, word_count, workflow_steps = assignment_result
+        
+        # Get individual questions
+        cursor.execute("""
+            SELECT question_number, question_title, question_prompt, 
+                   learning_objectives, required_evidence, word_target, 
+                   bloom_level, key_concepts, tutoring_prompts, evidence_guidance, complexity_score
+            FROM assignment_question_details
+            WHERE assignment_id = ?
+            ORDER BY question_number
+        """, (assignment_id,))
+        
+        questions = []
+        for row in cursor.fetchall():
+            questions.append({
+                'id': row[0],
+                'title': row[1],
+                'prompt': row[2],
+                'learning_objectives': json.loads(row[3]) if row[3] else [],
+                'required_evidence': row[4],
+                'word_target': row[5],
+                'bloom_level': row[6],
+                'key_concepts': json.loads(row[7]) if row[7] else [],
+                'tutoring_prompts': json.loads(row[8]) if row[8] else [],
+                'evidence_guidance': row[9] or '',
+                'complexity_score': row[10] or 0.5
+            })
+        
+        return {
+            'assignment_id': assignment_id,
+            'assignment_title': title,
+            'assignment_type': assignment_type,
+            'total_word_count': word_count,
+            'workflow_steps': json.loads(workflow_steps) if workflow_steps else [],
+            'questions': questions
+        }
+        
+    except Exception as e:
+        st.error(f"Error getting assignment questions: {e}")
+        return {}
+    finally:
+        conn.close()
+
+
+def update_student_assignment_progress(student_id: str, assignment_id: int, 
+                                     current_question: str = None,
+                                     completed_question: str = None,
+                                     evidence_item: str = None) -> bool:
+    """Update student progress on assignment"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Get existing progress
+        cursor.execute("""
+            SELECT questions_completed, evidence_found
+            FROM student_assignment_progress
+            WHERE student_id = ? AND assignment_id = ?
+        """, (student_id, assignment_id))
+        
+        result = cursor.fetchone()
+        
+        if result:
+            # Update existing progress
+            questions_completed = json.loads(result[0]) if result[0] else []
+            evidence_found = json.loads(result[1]) if result[1] else []
+            
+            if completed_question and completed_question not in questions_completed:
+                questions_completed.append(completed_question)
+            
+            if evidence_item and evidence_item not in evidence_found:
+                evidence_found.append(evidence_item)
+            
+            cursor.execute("""
+                UPDATE student_assignment_progress
+                SET current_question = ?, questions_completed = ?, 
+                    evidence_found = ?, last_updated = ?
+                WHERE student_id = ? AND assignment_id = ?
+            """, (
+                current_question or result[0],
+                json.dumps(questions_completed),
+                json.dumps(evidence_found),
+                datetime.now().isoformat(),
+                student_id, assignment_id
+            ))
+        else:
+            # Create new progress record
+            questions_completed = [completed_question] if completed_question else []
+            evidence_found = [evidence_item] if evidence_item else []
+            
+            cursor.execute("""
+                INSERT INTO student_assignment_progress
+                (student_id, assignment_id, current_question, questions_completed, 
+                 evidence_found, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                student_id, assignment_id, current_question,
+                json.dumps(questions_completed),
+                json.dumps(evidence_found),
+                datetime.now().isoformat()
+            ))
+        
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        st.error(f"Error updating assignment progress: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_student_assignment_progress(student_id: str, assignment_id: int) -> dict:
+    """Get student's progress on a specific assignment"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT current_question, questions_completed, evidence_found, 
+                   writing_readiness_score, last_updated
+            FROM student_assignment_progress
+            WHERE student_id = ? AND assignment_id = ?
+        """, (student_id, assignment_id))
+        
+        result = cursor.fetchone()
+        if not result:
+            return {
+                'current_question': None,
+                'questions_completed': [],
+                'evidence_found': [],
+                'writing_readiness_score': 0,
+                'last_updated': None
+            }
+        
+        return {
+            'current_question': result[0],
+            'questions_completed': json.loads(result[1]) if result[1] else [],
+            'evidence_found': json.loads(result[2]) if result[2] else [],
+            'writing_readiness_score': result[3] or 0,
+            'last_updated': result[4]
+        }
+        
+    except Exception as e:
+        st.error(f"Error getting student progress: {e}")
+        return {}
+    finally:
+        conn.close()

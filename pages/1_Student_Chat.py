@@ -5,13 +5,103 @@ from datetime import datetime
 from components.auth import is_authenticated, get_current_user
 from components.chat_engine import SocraticChatEngine, initialize_chat_session, add_message, get_chat_history, calculate_session_duration
 from components.rag_system import get_rag_system, get_article_processor
-from components.database import save_chat_session, get_articles, DATABASE_PATH
+from components.database import save_chat_session, get_articles, get_assignment_questions, get_student_assignment_progress, update_student_assignment_progress, DATABASE_PATH
 from components.student_engagement import StudentEngagementSystem
 from components.assessment_quality import AssessmentQualitySystem
 import PyPDF2
 import io
 
 st.set_page_config(page_title="Student Chat", page_icon="📖", layout="wide")
+
+def generate_assignment_aware_response(user_input, chat_history, article_context, relevant_knowledge, assignment_context, chat_engine):
+    """Generate assignment-focused responses that guide students through structured questions"""
+    
+    current_question_details = assignment_context.get('current_question_details', {})
+    current_question_id = assignment_context.get('current_question')
+    completed_questions = assignment_context.get('completed_questions', [])
+    all_questions = assignment_context.get('all_questions', [])
+    
+    # Build enhanced context for AI
+    enhanced_context = f"""
+ASSIGNMENT CONTEXT:
+- Assignment: {assignment_context.get('assignment_title', 'Study Questions')}
+- Target Length: {assignment_context.get('total_word_count', 'Not specified')}
+- Current Focus: Question {current_question_id}
+- Question Title: {current_question_details.get('title', 'No title')}
+- Question Prompt: {current_question_details.get('prompt', 'No prompt')}
+- Required Evidence: {current_question_details.get('required_evidence', 'No specific evidence required')}
+- Bloom Level: {current_question_details.get('bloom_level', 'Not specified')}
+- Completed Questions: {', '.join(completed_questions) if completed_questions else 'None yet'}
+
+COACHING GUIDELINES:
+1. Keep the conversation focused on the current question
+2. Guide the student to find specific evidence from the article
+3. Ask probing questions that develop critical thinking
+4. Discourage general discussion that doesn't advance the assignment
+5. Help synthesize findings toward the writing goal
+6. Encourage academic analysis over summary
+"""
+    
+    # Anti-rabbit-hole detection
+    rabbit_hole_keywords = ['generally', 'in general', 'what about', 'tell me about', 'explain', 'define']
+    is_potentially_diverging = any(keyword in user_input.lower() for keyword in rabbit_hole_keywords)
+    
+    if is_potentially_diverging and current_question_details:
+        # Redirect back to current question
+        redirect_response = f"""I understand you're curious about that topic, but let's stay focused on your assignment question to make the best use of our time.
+
+**Current Question ({current_question_id}):** {current_question_details.get('title', 'Question')}
+
+{current_question_details.get('prompt', 'No prompt available')}
+
+Based on your reading of the article, what specific evidence or examples did you find that relate to this question? Let's work on building your response systematically."""
+        
+        return redirect_response
+    
+    # Check if student is ready to move to next question
+    message_count_on_current = len([msg for msg in chat_history if current_question_id in msg.get('content', '')])
+    
+    if message_count_on_current > 8:  # Substantial discussion on current question
+        # Check if student has good evidence and understanding
+        evidence_keywords = ['evidence', 'example', 'study shows', 'data', 'result', 'finding']
+        has_evidence = any(keyword in user_input.lower() for keyword in evidence_keywords)
+        
+        if has_evidence:
+            # Suggest moving to next question
+            next_question_index = next((i for i, q in enumerate(all_questions) if q.get('id') == current_question_id), -1)
+            if next_question_index >= 0 and next_question_index + 1 < len(all_questions):
+                next_question = all_questions[next_question_index + 1]
+                
+                transition_response = f"""Excellent work on {current_question_id}! You've gathered solid evidence and shown good analytical thinking.
+
+Let's move forward to **{next_question['id']}: {next_question.get('title', 'Next Question')}**
+
+{next_question.get('prompt', 'No prompt available')}
+
+{f"**Required evidence:** {next_question.get('required_evidence', 'Use article content')}" if next_question.get('required_evidence') else ""}
+
+How does the article address this question? What specific information did you find relevant?"""
+                
+                return transition_response
+    
+    # Generate standard Socratic response with assignment context
+    base_response = chat_engine.generate_socratic_response(
+        user_input, 
+        chat_history,
+        article_context,
+        relevant_knowledge
+    )
+    
+    # Enhance with assignment-specific guidance
+    if current_question_details and current_question_id not in user_input:
+        assignment_reminder = f"""
+
+**Remember:** We're working on {current_question_id}: {current_question_details.get('title', 'Current Question')}
+Focus on finding specific evidence from the article that helps answer this question."""
+        
+        return base_response + assignment_reminder
+    
+    return base_response
 
 def main():
     st.title("📖 Article Discussion Chat")
@@ -189,7 +279,27 @@ def main():
                 success = load_article_safely(selected_article['file_path'], selected_article['title'])
                 
                 if success:
-                    st.success("🎉 Article loaded and processed successfully!")
+                    # Load assignment questions if they exist for this article
+                    assignment_questions = get_assignment_questions(selected_article['id'])
+                    if assignment_questions:
+                        st.session_state.assignment_questions = assignment_questions
+                        st.session_state.current_article_id = selected_article['id']
+                        
+                        # Load student progress for this assignment
+                        if 'assignment_id' in assignment_questions:
+                            progress = get_student_assignment_progress(user['id'], assignment_questions['assignment_id'])
+                            st.session_state.assignment_progress = progress
+                        
+                        st.success("🎉 Article and assignment questions loaded successfully!")
+                        st.info(f"📝 Assignment: {assignment_questions.get('assignment_title', 'Study Questions')} available")
+                    else:
+                        st.success("🎉 Article loaded successfully!")
+                        # Clear any previous assignment context
+                        if 'assignment_questions' in st.session_state:
+                            del st.session_state['assignment_questions']
+                        if 'assignment_progress' in st.session_state:
+                            del st.session_state['assignment_progress']
+                    
                     st.balloons()
                     st.rerun()
                 else:
@@ -197,6 +307,63 @@ def main():
         else:
             st.warning("No articles available. Please contact your instructor.")
             
+        # Display assignment questions if available
+        assignment_questions = st.session_state.get('assignment_questions')
+        if assignment_questions:
+            st.markdown("### 📝 Assignment Questions")
+            
+            # Show assignment overview
+            st.markdown(f"**{assignment_questions.get('assignment_title', 'Study Questions')}**")
+            st.caption(f"Word Target: {assignment_questions.get('total_word_count', 'Not specified')}")
+            
+            # Show workflow steps if available
+            workflow_steps = assignment_questions.get('workflow_steps', [])
+            if workflow_steps:
+                st.markdown("**Workflow Steps:**")
+                for i, step in enumerate(workflow_steps, 1):
+                    st.markdown(f"{i}. {step}")
+            
+            # Show progress if available
+            progress = st.session_state.get('assignment_progress', {})
+            if progress:
+                completed_questions = progress.get('questions_completed', [])
+                total_questions = len(assignment_questions.get('questions', []))
+                
+                if total_questions > 0:
+                    progress_pct = len(completed_questions) / total_questions
+                    st.progress(progress_pct, f"Progress: {len(completed_questions)}/{total_questions} questions")
+                
+                current_question = progress.get('current_question')
+                if current_question:
+                    st.info(f"🎯 Current Focus: Question {current_question}")
+            
+            # Show individual questions in expandable format
+            questions = assignment_questions.get('questions', [])
+            if questions:
+                st.markdown("**Questions:**")
+                for question in questions:
+                    question_id = question.get('id', 'Q?')
+                    question_title = question.get('title', 'Untitled Question')
+                    
+                    # Check if this question is completed
+                    is_completed = question_id in progress.get('questions_completed', [])
+                    status_icon = "✅" if is_completed else "📝"
+                    
+                    with st.expander(f"{status_icon} {question_id}: {question_title}", expanded=False):
+                        st.markdown(f"**{question.get('prompt', 'No prompt available')}**")
+                        
+                        word_target = question.get('word_target', '')
+                        if word_target:
+                            st.caption(f"Word target: {word_target}")
+                        
+                        bloom_level = question.get('bloom_level', '')
+                        if bloom_level:
+                            st.caption(f"Cognitive level: {bloom_level}")
+                        
+                        required_evidence = question.get('required_evidence', '')
+                        if required_evidence:
+                            st.markdown(f"**Required evidence:** {required_evidence}")
+        
         st.divider()
         
         # Session controls
@@ -356,14 +523,99 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         messages = get_chat_history()
         
         if not messages:
-            # Initial bot message
-            intro_message = f"""
-            Hello! I'm your Landscape Ecology AI tutor. I see we're discussing "{current_article['title']}".
+            # Check if there are assignment questions for structured guidance
+            assignment_questions = st.session_state.get('assignment_questions')
             
-            I'm here to help you understand this article and landscape ecology concepts. I can answer your questions about methods, findings, and concepts, while also guiding you through critical analysis with thought-provoking questions.
+            if assignment_questions:
+                # Assignment-aware initial message
+                assignment_title = assignment_questions.get('assignment_title', 'Study Questions')
+                questions = assignment_questions.get('questions', [])
+                workflow_steps = assignment_questions.get('workflow_steps', [])
+                
+                # Get student's current progress
+                progress = st.session_state.get('assignment_progress', {})
+                current_question = progress.get('current_question')
+                completed_questions = progress.get('questions_completed', [])
+                
+                # Determine which question to focus on
+                if not current_question and questions:
+                    # Start with the first question
+                    next_question_id = questions[0].get('id', 'Q1')
+                    current_question = next_question_id
+                    
+                    # Update progress
+                    if 'assignment_id' in assignment_questions:
+                        update_student_assignment_progress(
+                            user['id'], 
+                            assignment_questions['assignment_id'], 
+                            current_question=current_question
+                        )
+                        st.session_state.assignment_progress = {'current_question': current_question, 'questions_completed': completed_questions}
+                
+                intro_message = f"""
+Hello! I'm your Landscape Ecology AI tutor. I see we're working on "{current_article['title']}" with the assignment: **{assignment_title}**.
+
+This is a structured writing assignment designed to help you develop critical thinking skills. I'm here to guide you through each question systematically.
+
+**Assignment Overview:**
+• Target length: {assignment_questions.get('total_word_count', '600-900 words')}
+• Questions to address: {len(questions)}
+• This is analytical writing, not just summary
+
+**Your Workflow:**
+"""
+                
+                if workflow_steps:
+                    for i, step in enumerate(workflow_steps, 1):
+                        intro_message += f"{i}. {step}\n"
+                else:
+                    intro_message += """1. Read the article thoroughly
+2. Work through each question systematically
+3. Gather evidence and citations
+4. Develop your analytical responses
+5. Synthesize into coherent writing"""
+                
+                if current_question and questions:
+                    # Find the current question details
+                    current_q_details = None
+                    for q in questions:
+                        if q.get('id') == current_question:
+                            current_q_details = q
+                            break
+                    
+                    intro_message += f"""
+
+**Let's start with {current_question}:**
+"""
+                    if current_q_details:
+                        intro_message += f"""
+**{current_q_details.get('title', 'Question')}**
+
+{current_q_details.get('prompt', 'No prompt available')}
+"""
+                        
+                        required_evidence = current_q_details.get('required_evidence', '')
+                        if required_evidence:
+                            intro_message += f"""
+**Evidence needed:** {required_evidence}
+"""
+                    
+                    intro_message += """
+Have you read the article? Let's discuss what you found relevant to this first question. What aspects of the article relate to this question?"""
+                else:
+                    intro_message += """
+
+Have you finished reading the article? Let's start working through the assignment questions systematically."""
+            else:
+                # Generic intro message for articles without assignments
+                intro_message = f"""
+Hello! I'm your Landscape Ecology AI tutor. I see we're discussing "{current_article['title']}".
+
+I'm here to help you understand this article and landscape ecology concepts. I can answer your questions about methods, findings, and concepts, while also guiding you through critical analysis with thought-provoking questions.
+
+Have you finished reading the article? What would you like to know more about or discuss?
+"""
             
-            Have you finished reading the article? What would you like to know more about or discuss?
-            """
             add_message("assistant", intro_message)
             st.rerun()
         
@@ -383,6 +635,32 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         # Add user message
         add_message("student", user_input)
         
+        # Get assignment context for enhanced response generation
+        assignment_questions = st.session_state.get('assignment_questions')
+        assignment_progress = st.session_state.get('assignment_progress', {})
+        assignment_context = None
+        
+        if assignment_questions:
+            current_question = assignment_progress.get('current_question')
+            questions = assignment_questions.get('questions', [])
+            
+            # Build assignment context
+            assignment_context = {
+                'assignment_title': assignment_questions.get('assignment_title'),
+                'current_question': current_question,
+                'all_questions': questions,
+                'workflow_steps': assignment_questions.get('workflow_steps', []),
+                'total_word_count': assignment_questions.get('total_word_count'),
+                'completed_questions': assignment_progress.get('questions_completed', [])
+            }
+            
+            # Find current question details
+            if current_question:
+                for q in questions:
+                    if q.get('id') == current_question:
+                        assignment_context['current_question_details'] = q
+                        break
+        
         # Check if user is seeking direct answers
         if chat_engine.detect_answer_seeking(user_input):
             bot_response = chat_engine.redirect_answer_seeking()
@@ -391,16 +669,59 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
             relevant_knowledge = rag_system.search_knowledge(user_input)
             article_context = article_processor.get_article_context()
             
-            # Generate Socratic response
-            bot_response = chat_engine.generate_socratic_response(
-                user_input, 
-                get_chat_history(),
-                article_context,
-                relevant_knowledge
-            )
+            # Generate assignment-aware Socratic response
+            if assignment_context:
+                bot_response = generate_assignment_aware_response(
+                    user_input,
+                    get_chat_history(),
+                    article_context,
+                    relevant_knowledge,
+                    assignment_context,
+                    chat_engine
+                )
+            else:
+                # Generate standard Socratic response
+                bot_response = chat_engine.generate_socratic_response(
+                    user_input, 
+                    get_chat_history(),
+                    article_context,
+                    relevant_knowledge
+                )
         
         # Add bot response
         add_message("assistant", bot_response)
+        
+        # Update assignment progress if applicable
+        if assignment_context and 'assignment_id' in assignment_questions:
+            assignment_id = assignment_questions['assignment_id']
+            current_question = assignment_context.get('current_question')
+            
+            # Check if student provided substantial evidence/analysis (indicating readiness to progress)
+            evidence_keywords = ['evidence', 'example', 'study shows', 'data', 'result', 'finding', 'demonstrates', 'indicates']
+            analysis_keywords = ['because', 'therefore', 'analysis', 'conclude', 'suggest', 'implies', 'relationship']
+            
+            has_evidence = any(keyword in user_input.lower() for keyword in evidence_keywords)
+            has_analysis = any(keyword in user_input.lower() for keyword in analysis_keywords)
+            is_substantial = len(user_input.split()) > 20  # More than 20 words
+            
+            if has_evidence and has_analysis and is_substantial and current_question:
+                # Check if this question should be marked as progressing well
+                current_progress = st.session_state.get('assignment_progress', {})
+                evidence_found = current_progress.get('evidence_found', [])
+                
+                # Add evidence item
+                evidence_item = f"{current_question}: {user_input[:100]}..."
+                if evidence_item not in evidence_found:
+                    update_student_assignment_progress(
+                        user['id'], 
+                        assignment_id, 
+                        current_question=current_question,
+                        evidence_item=evidence_item
+                    )
+                    
+                    # Update session state
+                    updated_progress = get_student_assignment_progress(user['id'], assignment_id)
+                    st.session_state.assignment_progress = updated_progress
         
         # Track message quality for assessment
         quality_metrics = assessment_system.calculate_message_quality(user_input)

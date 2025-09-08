@@ -6,6 +6,7 @@ import PyPDF2
 import io
 from components.auth import is_authenticated, get_current_user
 from components.database import save_article, get_articles, delete_article, update_article_status
+from components.assignment_parser import AssignmentParser
 # Delayed import to avoid initialization issues
 # from components.rag_system import get_rag_system
 
@@ -24,7 +25,7 @@ def main():
         st.stop()
     
     # Create tabs for different functions
-    tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload New Article", "📚 Manage Articles", "🧠 Knowledge Base", "🔍 Research Monitoring"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📤 Upload New Article", "📚 Manage Articles", "📄 Upload Assignment", "❓ Assignment Questions", "🧠 Knowledge Base", "🔍 Research Monitoring"])
     
     with tab1:
         display_upload_interface()
@@ -33,10 +34,313 @@ def main():
         display_article_management()
     
     with tab3:
-        display_knowledge_base_management()
+        display_assignment_upload_interface()
     
     with tab4:
+        display_assignment_questions_interface()
+    
+    with tab5:
+        display_knowledge_base_management()
+    
+    with tab6:
         display_research_monitoring()
+
+def display_assignment_upload_interface():
+    """Display the assignment upload and parsing interface"""
+    st.markdown("### 📄 Upload & Parse Assignment")
+    st.markdown("Upload assignment documents (PDF, Word, or text) to automatically extract structured questions and create tutoring guidance.")
+    
+    # Create assignments directory if it doesn't exist
+    os.makedirs("data/assignments", exist_ok=True)
+    
+    # Initialize assignment parser
+    parser = AssignmentParser()
+    
+    with st.form("assignment_upload_form"):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Assignment file upload
+            uploaded_assignment = st.file_uploader(
+                "Choose assignment file:",
+                type=['pdf', 'docx', 'txt', 'md'],
+                help="Select an assignment document to parse (PDF, Word, or text file)"
+            )
+            
+            # Assignment metadata
+            assignment_title = st.text_input(
+                "Assignment Title:",
+                placeholder="Enter assignment title (will be auto-detected if not provided)",
+                help="Leave blank to auto-detect from document"
+            )
+            
+            assignment_type = st.selectbox(
+                "Assignment Type:",
+                ["socratic_analysis", "case_study_analysis", "concept_application", "research_synthesis"],
+                help="Type of assignment for optimal tutoring approach"
+            )
+            
+            # Link to article
+            articles_df = get_articles()
+            if not articles_df.empty:
+                article_options = ["No specific article"] + [f"Week {row['week_number']}: {row['title']}" for _, row in articles_df.iterrows()]
+                linked_article = st.selectbox(
+                    "Link to Article (optional):",
+                    article_options,
+                    help="Associate this assignment with a specific article for enhanced guidance"
+                )
+            else:
+                linked_article = "No specific article"
+                st.info("Upload articles first to link assignments to specific readings.")
+        
+        with col2:
+            st.markdown("#### Parsing Features")
+            st.info("""
+            **Auto-Detection:**
+            - Question extraction from text
+            - Bloom's taxonomy classification
+            - Evidence requirements
+            - Learning objectives
+            - Word count estimation
+            
+            **Enhanced Tutoring:**
+            - Generated guidance prompts
+            - Progressive questioning
+            - Context-aware responses
+            """)
+        
+        # Submit button
+        submitted = st.form_submit_button("📄 Parse Assignment", use_container_width=True)
+        
+        if submitted:
+            if uploaded_assignment:
+                process_assignment_upload(uploaded_assignment, assignment_title, assignment_type, linked_article, parser)
+            else:
+                st.error("Please select an assignment file to upload.")
+
+def process_assignment_upload(uploaded_file, title, assignment_type, linked_article, parser):
+    """Process and parse uploaded assignment"""
+    
+    try:
+        # Parse the assignment document
+        with st.spinner("🔍 Parsing assignment document..."):
+            file_content = uploaded_file.read()
+            filename = uploaded_file.name
+            
+            parsed_data = parser.parse_assignment_document(file_content, filename, assignment_type)
+        
+        # Check for parsing errors
+        if parsed_data.get('error'):
+            st.error(f"❌ Parsing failed: {parsed_data['error_message']}")
+            return
+        
+        # Validate parsed data
+        is_valid, issues = parser.validate_parsed_assignment(parsed_data)
+        
+        if not is_valid:
+            st.warning("⚠️ Parsing Issues Detected:")
+            for issue in issues:
+                st.warning(f"• {issue}")
+            
+            if not st.checkbox("Continue anyway? (You can manually edit questions later)"):
+                return
+        
+        # Show parsing preview
+        st.success("✅ Assignment parsed successfully!")
+        
+        with st.expander("📋 Parsing Preview", expanded=True):
+            preview_text = parser.generate_assignment_preview(parsed_data)
+            st.markdown(preview_text)
+        
+        # Allow manual refinement
+        st.markdown("### ✏️ Refine Parsed Assignment")
+        
+        refined_data = refine_parsed_assignment(parsed_data, title)
+        
+        # Save to database if user confirms
+        if st.button("💾 Save Assignment to Database", use_container_width=True, type="primary"):
+            save_parsed_assignment(refined_data, linked_article, uploaded_file.name)
+            
+    except Exception as e:
+        st.error(f"❌ Error processing assignment: {str(e)}")
+        st.info("Please check the file format and try again.")
+
+def refine_parsed_assignment(parsed_data, manual_title):
+    """Allow manual refinement of parsed assignment data"""
+    
+    # Use manual title if provided, otherwise use parsed title
+    final_title = manual_title.strip() if manual_title.strip() else parsed_data.get('assignment_title', 'Untitled Assignment')
+    
+    with st.form("refine_assignment"):
+        st.markdown("#### Assignment Metadata")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            refined_title = st.text_input("Assignment Title:", value=final_title)
+            refined_word_count = st.text_input("Word Count Target:", value=parsed_data.get('total_word_count', '600-900 words'))
+        
+        with col2:
+            refined_type = st.text_input("Assignment Type:", value=parsed_data.get('assignment_type', 'socratic_analysis'))
+        
+        # Workflow steps
+        workflow_steps = parsed_data.get('workflow_steps', [])
+        refined_workflow = st.text_area(
+            "Workflow Steps (one per line):",
+            value="\n".join(workflow_steps),
+            height=120,
+            help="Steps students should follow when working through this assignment"
+        )
+        
+        st.markdown("#### Questions")
+        
+        # Display questions for refinement
+        questions = parsed_data.get('questions', [])
+        refined_questions = []
+        
+        for i, question in enumerate(questions):
+            with st.expander(f"Question {i+1}: {question.get('id', 'Q'+str(i+1))}", expanded=i < 2):
+                q_col1, q_col2 = st.columns(2)
+                
+                with q_col1:
+                    q_id = st.text_input("Question ID:", value=question.get('id', f'Q{i+1}'), key=f'refine_id_{i}')
+                    q_title = st.text_input("Question Title:", value=question.get('title', ''), key=f'refine_title_{i}')
+                    q_bloom = st.selectbox(
+                        "Bloom's Level:",
+                        ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'],
+                        index=['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'].index(
+                            question.get('bloom_level', 'analyze')
+                        ),
+                        key=f'refine_bloom_{i}'
+                    )
+                
+                with q_col2:
+                    q_word_target = st.text_input("Word Target:", value=question.get('word_target', '150-200 words'), key=f'refine_words_{i}')
+                    q_evidence = st.text_input("Required Evidence:", value=question.get('required_evidence', ''), key=f'refine_evidence_{i}')
+                
+                q_prompt = st.text_area(
+                    "Question Prompt:",
+                    value=question.get('prompt', ''),
+                    height=100,
+                    key=f'refine_prompt_{i}'
+                )
+                
+                q_objectives = st.text_input(
+                    "Learning Objectives (comma-separated):",
+                    value=', '.join(question.get('learning_objectives', [])),
+                    key=f'refine_obj_{i}'
+                )
+                
+                # Show generated tutoring prompts
+                tutoring_prompts = question.get('tutoring_prompts', [])
+                if tutoring_prompts:
+                    st.markdown("**Generated Tutoring Prompts:**")
+                    for prompt in tutoring_prompts:
+                        st.markdown(f"• {prompt}")
+                
+                refined_questions.append({
+                    'id': q_id,
+                    'title': q_title,
+                    'prompt': q_prompt,
+                    'bloom_level': q_bloom,
+                    'word_target': q_word_target,
+                    'required_evidence': q_evidence,
+                    'learning_objectives': [obj.strip() for obj in q_objectives.split(',') if obj.strip()],
+                    'key_concepts': question.get('key_concepts', []),
+                    'tutoring_prompts': tutoring_prompts
+                })
+        
+        # Update button
+        if st.form_submit_button("🔄 Update Preview"):
+            # Create refined data structure
+            refined_data = {
+                'assignment_title': refined_title,
+                'assignment_type': refined_type,
+                'total_word_count': refined_word_count,
+                'workflow_steps': [step.strip() for step in refined_workflow.split('\n') if step.strip()],
+                'questions': refined_questions,
+                'parsed_at': parsed_data.get('parsed_at'),
+                'filename': parsed_data.get('filename'),
+                'file_type': parsed_data.get('file_type')
+            }
+            
+            # Show updated preview
+            parser = AssignmentParser()
+            st.markdown("### 🔄 Updated Preview")
+            preview_text = parser.generate_assignment_preview(refined_data)
+            st.markdown(preview_text)
+            
+            return refined_data
+    
+    # Return original data if no updates
+    return parsed_data
+
+def save_parsed_assignment(assignment_data, linked_article, original_filename):
+    """Save parsed assignment to database"""
+    
+    try:
+        from components.database import save_assignment_questions
+        
+        # Determine article ID if linked
+        article_id = None
+        if linked_article != "No specific article":
+            articles_df = get_articles()
+            for _, row in articles_df.iterrows():
+                article_display = f"Week {row['week_number']}: {row['title']}"
+                if article_display == linked_article:
+                    article_id = row['id']
+                    break
+        
+        # If no specific article linked, create a general assignment entry
+        if not article_id:
+            # Save as general assignment (we need to create a placeholder article or modify the database)
+            st.warning("⚠️ No article linked. You'll need to manually associate this assignment with an article later.")
+            st.info("For now, the assignment structure has been parsed and can be manually added to an article.")
+            
+            # Show the assignment data that can be copied
+            st.markdown("### 📋 Parsed Assignment Data")
+            st.markdown("Copy this data to manually create assignment questions:")
+            
+            with st.expander("Assignment JSON Data", expanded=False):
+                st.json(assignment_data)
+            
+            return
+        
+        # Save assignment questions
+        assignment_id = save_assignment_questions(
+            article_id=article_id,
+            assignment_title=assignment_data['assignment_title'],
+            questions_data={
+                'assignment_type': assignment_data['assignment_type'],
+                'total_word_count': assignment_data['total_word_count'],
+                'workflow_steps': assignment_data['workflow_steps'],
+                'questions': assignment_data['questions']
+            }
+        )
+        
+        if assignment_id:
+            st.success(f"✅ Assignment saved successfully! (ID: {assignment_id})")
+            st.balloons()
+            
+            # Show summary
+            with st.expander("📊 Assignment Summary", expanded=True):
+                st.markdown(f"**Title:** {assignment_data['assignment_title']}")
+                st.markdown(f"**Type:** {assignment_data['assignment_type']}")
+                st.markdown(f"**Questions:** {len(assignment_data['questions'])}")
+                st.markdown(f"**Linked Article:** {linked_article}")
+                st.markdown(f"**Original File:** {original_filename}")
+                
+                if assignment_data['workflow_steps']:
+                    st.markdown("**Workflow Steps:**")
+                    for i, step in enumerate(assignment_data['workflow_steps'], 1):
+                        st.markdown(f"{i}. {step}")
+            
+            st.info("🎯 Students will now receive enhanced tutoring guidance when working on this assignment!")
+            
+        else:
+            st.error("❌ Failed to save assignment to database.")
+            
+    except Exception as e:
+        st.error(f"❌ Error saving assignment: {str(e)}")
 
 def display_upload_interface():
     """Display the article upload interface"""
@@ -422,6 +726,288 @@ def display_knowledge_base_management():
     except Exception as e:
         st.error(f"🚨 Error loading knowledge base management: {str(e)[:100]}...")
         st.info("Please contact administrator if this persists.")
+
+
+def display_assignment_questions_interface():
+    """Display assignment questions management interface"""
+    st.markdown("### ❓ Assignment Questions")
+    st.markdown("Create and manage assignment questions for each article to guide student discussions.")
+    
+    # Get all articles
+    try:
+        from components.database import get_articles, save_assignment_questions, get_assignment_questions
+        articles_df = get_articles()
+        
+        if articles_df.empty:
+            st.warning("No articles uploaded yet. Upload articles first before creating assignments.")
+            return
+        
+        # Article selection
+        st.markdown("#### Select Article for Assignment")
+        
+        article_options = {}
+        for _, row in articles_df.iterrows():
+            display_name = f"Week {row['week_number']}: {row['title']}"
+            article_options[display_name] = row
+        
+        selected_article_name = st.selectbox(
+            "Choose article:",
+            options=list(article_options.keys()),
+            help="Select the article to create or edit assignment questions for"
+        )
+        
+        selected_article = article_options[selected_article_name]
+        article_id = selected_article['id']
+        
+        # Check if assignment already exists
+        existing_assignment = get_assignment_questions(article_id)
+        
+        if existing_assignment:
+            st.success(f"✅ Assignment questions exist for this article")
+            display_existing_assignment(existing_assignment)
+            
+            if st.button("🔄 Edit Assignment Questions", use_container_width=True):
+                st.session_state.edit_assignment = True
+        
+        # Create new assignment or edit existing
+        if not existing_assignment or st.session_state.get('edit_assignment', False):
+            create_assignment_form(article_id, selected_article['title'], existing_assignment)
+            
+    except Exception as e:
+        st.error(f"Error loading assignment interface: {e}")
+
+
+def display_existing_assignment(assignment_data):
+    """Display existing assignment questions"""
+    st.markdown("#### Current Assignment")
+    
+    with st.expander("Assignment Overview", expanded=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown(f"**Title:** {assignment_data['assignment_title']}")
+            st.markdown(f"**Type:** {assignment_data['assignment_type']}")
+            st.markdown(f"**Word Count:** {assignment_data['total_word_count']}")
+        
+        with col2:
+            st.markdown(f"**Questions:** {len(assignment_data['questions'])}")
+            if assignment_data['workflow_steps']:
+                st.markdown("**Workflow Steps:**")
+                for i, step in enumerate(assignment_data['workflow_steps'], 1):
+                    st.markdown(f"{i}. {step}")
+    
+    # Display questions
+    st.markdown("#### Assignment Questions")
+    for question in assignment_data['questions']:
+        with st.expander(f"{question['id']}: {question['title']}", expanded=False):
+            st.markdown(f"**Prompt:** {question['prompt']}")
+            if question['learning_objectives']:
+                st.markdown(f"**Learning Objectives:** {', '.join(question['learning_objectives'])}")
+            if question['required_evidence']:
+                st.markdown(f"**Required Evidence:** {question['required_evidence']}")
+            if question['word_target']:
+                st.markdown(f"**Word Target:** {question['word_target']}")
+            if question['bloom_level']:
+                st.markdown(f"**Bloom's Level:** {question['bloom_level']}")
+
+
+def create_assignment_form(article_id, article_title, existing_data=None):
+    """Create form for assignment questions"""
+    st.markdown("#### Create/Edit Assignment Questions")
+    
+    with st.form("assignment_form"):
+        # Assignment metadata
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            assignment_title = st.text_input(
+                "Assignment Title:",
+                value=existing_data.get('assignment_title', f"Assignment for {article_title}"),
+                help="Title for this assignment"
+            )
+            
+            assignment_type = st.selectbox(
+                "Assignment Type:",
+                ["socratic_reading_analysis", "case_study_analysis", "concept_application"],
+                index=0,
+                help="Type of assignment"
+            )
+        
+        with col2:
+            word_count = st.text_input(
+                "Total Word Count:",
+                value=existing_data.get('total_word_count', '600-900 words'),
+                help="Expected total word count for student responses"
+            )
+        
+        # Workflow steps
+        st.markdown("**Suggested Workflow Steps** (one per line):")
+        workflow_text = st.text_area(
+            "Workflow Steps:",
+            value="\n".join(existing_data.get('workflow_steps', [
+                "Define and contrast concepts with page citations",
+                "Probe integration barriers with tutor", 
+                "Identify concrete examples and critique them",
+                "Explore human dimension concepts",
+                "Design planning application scenario"
+            ])),
+            height=120,
+            help="Steps students should follow when working with the AI tutor"
+        )
+        
+        # Questions
+        st.markdown("#### Individual Questions")
+        
+        # Pre-populate with Hersperger example if new assignment
+        if not existing_data:
+            default_questions = [
+                {
+                    'id': 'Q1',
+                    'title': 'Concept contrast and change',
+                    'prompt': 'Hersperger et al. distinguish between early core concepts (structure, function, change, scale) and newer applied concepts (ecosystem services, green infrastructure, resilience, human experience). Use the tutor to help you define and contrast one early and one newer concept. How do they reflect different phases in the evolution of landscape ecology?',
+                    'learning_objectives': ['Define concepts', 'Compare evolution phases'],
+                    'required_evidence': 'Page-anchored quotations',
+                    'word_target': '120-180 words',
+                    'bloom_level': 'analysis'
+                },
+                {
+                    'id': 'Q2',
+                    'title': 'Concept integration into planning',
+                    'prompt': 'The review shows that most concepts are used in the analysis stage of planning, but rarely in goal-setting or monitoring. Ask the tutor for passages showing this evidence, then discuss: why might concepts remain confined to analysis? What barriers prevent their fuller integration across the planning cycle?',
+                    'learning_objectives': ['Analyze barriers', 'Evaluate integration'],
+                    'required_evidence': 'Passages showing evidence',
+                    'word_target': '120-180 words', 
+                    'bloom_level': 'evaluation'
+                }
+            ]
+        else:
+            default_questions = existing_data['questions']
+        
+        # Dynamic question builder
+        if 'assignment_questions' not in st.session_state:
+            st.session_state.assignment_questions = default_questions
+        
+        for i, question in enumerate(st.session_state.assignment_questions):
+            with st.expander(f"Question {i+1}: {question.get('id', 'New')}", expanded=i < 2):
+                q_col1, q_col2 = st.columns(2)
+                
+                with q_col1:
+                    q_id = st.text_input(
+                        "Question ID:",
+                        value=question.get('id', f'Q{i+1}'),
+                        key=f'q_id_{i}'
+                    )
+                    
+                    q_title = st.text_input(
+                        "Question Title:",
+                        value=question.get('title', ''),
+                        key=f'q_title_{i}'
+                    )
+                
+                with q_col2:
+                    q_word_target = st.text_input(
+                        "Word Target:",
+                        value=question.get('word_target', '120-180 words'),
+                        key=f'q_words_{i}'
+                    )
+                    
+                    q_bloom_level = st.selectbox(
+                        "Bloom's Level:",
+                        ['comprehension', 'analysis', 'synthesis', 'evaluation'],
+                        index=['comprehension', 'analysis', 'synthesis', 'evaluation'].index(
+                            question.get('bloom_level', 'analysis')
+                        ),
+                        key=f'q_bloom_{i}'
+                    )
+                
+                q_prompt = st.text_area(
+                    "Question Prompt:",
+                    value=question.get('prompt', ''),
+                    height=100,
+                    key=f'q_prompt_{i}'
+                )
+                
+                q_learning_obj = st.text_input(
+                    "Learning Objectives (comma-separated):",
+                    value=', '.join(question.get('learning_objectives', [])),
+                    key=f'q_obj_{i}'
+                )
+                
+                q_evidence = st.text_input(
+                    "Required Evidence:",
+                    value=question.get('required_evidence', ''),
+                    key=f'q_evidence_{i}'
+                )
+                
+                # Update session state
+                st.session_state.assignment_questions[i] = {
+                    'id': q_id,
+                    'title': q_title, 
+                    'prompt': q_prompt,
+                    'learning_objectives': [obj.strip() for obj in q_learning_obj.split(',') if obj.strip()],
+                    'required_evidence': q_evidence,
+                    'word_target': q_word_target,
+                    'bloom_level': q_bloom_level
+                }
+        
+        # Add/Remove question buttons
+        col_add, col_remove = st.columns(2)
+        with col_add:
+            if st.form_submit_button("➕ Add Question"):
+                st.session_state.assignment_questions.append({
+                    'id': f'Q{len(st.session_state.assignment_questions)+1}',
+                    'title': '',
+                    'prompt': '',
+                    'learning_objectives': [],
+                    'required_evidence': '',
+                    'word_target': '120-180 words',
+                    'bloom_level': 'analysis'
+                })
+                st.rerun()
+        
+        with col_remove:
+            if st.form_submit_button("➖ Remove Last Question") and len(st.session_state.assignment_questions) > 1:
+                st.session_state.assignment_questions.pop()
+                st.rerun()
+        
+        # Submit assignment
+        if st.form_submit_button("💾 Save Assignment Questions", use_container_width=True):
+            save_assignment_form(article_id, assignment_title, assignment_type, word_count, workflow_text)
+
+
+def save_assignment_form(article_id, assignment_title, assignment_type, word_count, workflow_text):
+    """Save the assignment questions"""
+    try:
+        from components.database import save_assignment_questions
+        
+        workflow_steps = [step.strip() for step in workflow_text.split('\n') if step.strip()]
+        
+        questions_data = {
+            'assignment_type': assignment_type,
+            'total_word_count': word_count,
+            'workflow_steps': workflow_steps,
+            'questions': st.session_state.assignment_questions
+        }
+        
+        assignment_id = save_assignment_questions(article_id, assignment_title, questions_data)
+        
+        if assignment_id:
+            st.success(f"✅ Assignment questions saved successfully! (ID: {assignment_id})")
+            st.balloons()
+            
+            # Clear form state
+            if 'assignment_questions' in st.session_state:
+                del st.session_state.assignment_questions
+            if 'edit_assignment' in st.session_state:
+                del st.session_state.edit_assignment
+                
+            st.rerun()
+        else:
+            st.error("❌ Failed to save assignment questions.")
+            
+    except Exception as e:
+        st.error(f"Error saving assignment: {e}")
+
 
 def display_research_monitoring():
     """Display research monitoring interface for professors"""
