@@ -22,10 +22,12 @@ class LandscapeEcologyRAG:
         """Load landscape ecology knowledge base from text file"""
         try:
             with open(KB_FILE_PATH, 'r', encoding='utf-8') as f:
-                self.knowledge_base = f.read()
+                kb_content = f.read()
+                # Split content into chunks for better processing
+                self.knowledge_base = self._split_text_into_chunks(kb_content)
         except FileNotFoundError:
-            self.knowledge_base = "Knowledge base not found."
-            st.warning("Knowledge base file not found. Using a default empty base.")
+            st.warning("Knowledge base file not found. Using default knowledge.")
+            self._create_default_knowledge()
             
     def _create_default_knowledge(self):
         """Create a minimal default knowledge base"""
@@ -42,6 +44,46 @@ class LandscapeEcologyRAG:
             "Corridors are linear habitat features that connect otherwise fragmented habitats and facilitate movement."
         ]
         self._build_search_index()
+    
+    def _split_text_into_chunks(self, text: str, chunk_size: int = 500) -> List[str]:
+        """Split large text into manageable chunks for processing"""
+        if not text:
+            return []
+        
+        # Split by paragraphs first, then by sentences if needed
+        paragraphs = text.split('\n\n')
+        chunks = []
+        
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+                
+            # If paragraph is short enough, use as is
+            if len(paragraph) <= chunk_size:
+                chunks.append(paragraph)
+            else:
+                # Split long paragraphs into sentences
+                sentences = re.split(r'[.!?]+', paragraph)
+                current_chunk = ""
+                
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    if not sentence:
+                        continue
+                    
+                    # If adding this sentence would exceed chunk size, save current chunk
+                    if len(current_chunk) + len(sentence) > chunk_size and current_chunk:
+                        chunks.append(current_chunk.strip())
+                        current_chunk = sentence
+                    else:
+                        current_chunk += ". " + sentence if current_chunk else sentence
+                
+                # Add the last chunk if it has content
+                if current_chunk.strip():
+                    chunks.append(current_chunk.strip())
+        
+        return chunks
     
     def _build_search_index(self):
         """Build simple keyword search index for the knowledge base"""
