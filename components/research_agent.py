@@ -85,7 +85,7 @@ class ArticleResearchAgent:
         }
     
     def _intelligent_article_analysis(self, content: str, title: str) -> Dict[str, Any] | None:
-        """Use Groq API to intelligently analyze the article"""
+        """Use Groq API to intelligently analyze the article (guarded by env var)"""
         try:
             import requests
             import os
@@ -587,14 +587,10 @@ Conservation applications: Landscape-scale planning essential for biodiversity c
 Future research: Integration of social-ecological systems. Climate adaptation strategies. Technology advances (drones, sensors, AI) enable new insights. Cross-scale interactions remain poorly understood."""
     
     def _enhanced_intelligent_search(self, query: str) -> str:
-        """Enhanced intelligent search using Groq API for analysis"""
+        """Enhanced intelligent search using Groq API for analysis (guarded)"""
         try:
             import requests
-            import os
-            
-            # Use Groq API to generate intelligent search results
             groq_api_key = os.environ.get('GROQ_API_KEY')
-            
             if not groq_api_key:
                 return self._simulate_web_search(query)
             
@@ -638,7 +634,7 @@ Focus on factual, educational content that would help students understand this t
             # Fall back to simulation if API fails
             return self._simulate_web_search(query)
             
-        except Exception as e:
+        except Exception:
             return self._simulate_web_search(query)
     
     def _organize_research_results(self, research_results: List[Dict[str, Any]], analysis: Dict[str, Any]) -> List[str]:
