@@ -252,25 +252,36 @@ def display_overview_metrics():
     # Add engagement metrics section
     st.markdown("### 🎯 Student Engagement Metrics")
     
-    # Get engagement statistics from database
-    conn = sqlite3.connect(DATABASE_PATH)
-    engagement_df = pd.read_sql_query("SELECT * FROM student_progress", conn)
-    conn.close()
-    
-    if not engagement_df.empty:
-        # Count students with badges
-        students_with_badges = len(engagement_df[engagement_df['badges_earned'] != '[]'])
+    # Get engagement statistics from database with proper connection management
+    try:
+        with sqlite3.connect(DATABASE_PATH) as conn:
+            engagement_df = pd.read_sql_query("SELECT * FROM student_progress", conn)
+            
+            if not engagement_df.empty:
+                # Count students with badges
+                students_with_badges = len(engagement_df[engagement_df['badges_earned'] != '[]'])
+                
+                # Count peer insights - use the same connection
+                try:
+                    insights_df = pd.read_sql_query("SELECT COUNT(*) as count FROM peer_insights", conn)
+                    total_insights = insights_df['count'].iloc[0] if not insights_df.empty else 0
+                except Exception:
+                    total_insights = 0
+                
+                # Average cognitive level
+                avg_level = engagement_df['current_level'].mean() if not engagement_df['current_level'].empty else 1.0
+                
+                # Count students exploring concepts
+                students_with_concepts = len(engagement_df[engagement_df['concepts_explored'] != '[]'])
+                
+            else:
+                students_with_badges = 0
+                total_insights = 0
+                avg_level = 1.0
+                students_with_concepts = 0
         
-        # Count peer insights
-        total_insights = len(pd.read_sql_query("SELECT COUNT(*) FROM peer_insights", conn))
-        
-        # Average cognitive level
-        avg_level = engagement_df['current_level'].mean() if not engagement_df['current_level'].empty else 1.0
-        
-        # Count students exploring concepts
-        students_with_concepts = len(engagement_df[engagement_df['concepts_explored'] != '[]'])
-        
-    else:
+    except Exception as e:
+        st.warning(f"Could not load engagement metrics: {str(e)[:100]}...")
         students_with_badges = 0
         total_insights = 0
         avg_level = 1.0
