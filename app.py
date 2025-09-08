@@ -1,7 +1,8 @@
 import streamlit as st
 import os
+import sys
 from components.auth import initialize_auth, check_authentication
-from components.database import initialize_database
+# from components.database import initialize_database # This is not needed and is superseded by the init_all_tables import
 from components.database_init import initialize_database as init_all_tables
 
 # Page configuration
@@ -52,31 +53,38 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def main():
-    # Initialize database and authentication
-    initialize_database()
-    init_all_tables()  # Ensure all tables exist with correct schema
-    initialize_auth()
-    
-    # Quick database health check (only show to professors)
-    if st.session_state.get('user_type') == 'Professor':
-        from components.database_init import check_database_health
-        is_healthy, message = check_database_health()
-        if not is_healthy:
-            st.error(f"Database issue: {message}")
+    try:
+        # Initialize database and authentication
+        # initialize_database() # This was the redundant call. It is now removed.
+        init_all_tables()  # This function correctly ensures all tables exist with the right schema.
+        initialize_auth()
+        
+        # Quick database health check (only show to professors)
+        if st.session_state.get('user_type') == 'Professor':
+            from components.database_init import check_database_health
+            is_healthy, message = check_database_health()
+            if not is_healthy:
+                st.error(f"Database issue: {message}")
+            else:
+                st.caption(f"✅ Database: {message}")
+        
+        # Main header
+        st.markdown('<h1 class="main-header">🌿 Landscape Ecology Chatbot</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="course-info">GEOG/EVST 5015C/6015C</p>', unsafe_allow_html=True)
+        st.markdown('<p class="university-info">University of Cincinnati</p>', unsafe_allow_html=True)
+        st.markdown('<p class="subtitle">An AI-powered learning companion for critical article analysis</p>', unsafe_allow_html=True)
+        
+        # Check if user is authenticated
+        if 'authenticated' not in st.session_state or not st.session_state.authenticated:
+            show_login_page()
         else:
-            st.caption(f"✅ Database: {message}")
-    
-    # Main header
-    st.markdown('<h1 class="main-header">🌿 Landscape Ecology Chatbot</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="course-info">GEOG/EVST 5015C/6015C</p>', unsafe_allow_html=True)
-    st.markdown('<p class="university-info">University of Cincinnati</p>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">An AI-powered learning companion for critical article analysis</p>', unsafe_allow_html=True)
-    
-    # Check if user is authenticated
-    if 'authenticated' not in st.session_state or not st.session_state.authenticated:
-        show_login_page()
-    else:
-        show_main_interface()
+            show_main_interface()
+
+    except Exception as e:
+        # This block will catch any error during startup and print it to the logs.
+        st.error(f"A critical error occurred on startup: {e}")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
 
 def show_login_page():
     st.markdown("### Welcome to the Landscape Ecology Learning Platform")
