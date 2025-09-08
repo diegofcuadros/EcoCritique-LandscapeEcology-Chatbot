@@ -16,20 +16,22 @@ PROMPTS_FILE_PATH = os.path.join(_PROJECT_ROOT, 'data', 'socratic_prompts.json')
 class SocraticChatEngine:
     """A Socratic chat engine for discussing landscape ecology articles."""
     
-    def __init__(self, article_text: str, student_info: Dict[str, Any], article_title: str):
-        self.article_text = article_text
-        self.student_info = student_info
-        self.article_title = article_title
+    def __init__(self):
+        self.conversation_levels = {
+            1: "comprehension",
+            2: "analysis",
+            3: "synthesis",
+            4: "evaluation",
+        }
         
         try:
-            with open(PROMPTS_FILE_PATH, 'r') as f:
+            with open(PROMPTS_FILE_PATH, 'r', encoding='utf-8') as f:
                 self.prompts = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            st.error(f"Error loading prompts: {e}")
+        except Exception:
             self.prompts = {}
             
         # self.client = Anthropic(api_key=st.secrets["anthropic"]["api_key"]) # Temporarily commented out for debugging
-        self.client = None # Add a placeholder
+        self.client = None
         self.model = "claude-3-opus-20240229"
         self.temperature = 0.5
         self.max_tokens = 4000
@@ -37,9 +39,9 @@ class SocraticChatEngine:
     def load_prompts(self):
         """Load Socratic questioning prompts from JSON file"""
         try:
-            with open('data/socratic_prompts.json', 'r') as f:
+            with open(PROMPTS_FILE_PATH, 'r', encoding='utf-8') as f:
                 self.prompts = json.load(f)
-        except FileNotFoundError:
+        except Exception:
             # Default prompts if file doesn't exist
             self.prompts = {
                 "comprehension": [
