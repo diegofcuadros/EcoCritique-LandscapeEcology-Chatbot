@@ -8,6 +8,7 @@ from components.rag_system import get_rag_system, get_article_processor
 from components.database import save_chat_session, get_articles, get_assignment_questions, get_student_assignment_progress, update_student_assignment_progress, DATABASE_PATH
 from components.student_engagement import StudentEngagementSystem
 from components.assessment_quality import AssessmentQualitySystem
+from components.focus_manager import FocusManager
 import PyPDF2
 import io
 
@@ -21,6 +22,44 @@ def generate_assignment_aware_response(user_input, chat_history, article_context
     completed_questions = assignment_context.get('completed_questions', [])
     all_questions = assignment_context.get('all_questions', [])
     
+    # Initialize advanced focus manager
+    focus_manager = FocusManager()
+    
+    # Analyze conversation drift with advanced multi-factor analysis
+    drift_analysis = focus_manager.analyze_conversation_drift(
+        user_input=user_input,
+        chat_history=chat_history,
+        current_question=current_question_details,
+        assignment_context=assignment_context
+    )
+    
+    # Check if intervention is needed
+    if focus_manager.should_intervene(drift_analysis) and current_question_details:
+        # Get current student progress for context
+        student_progress = assignment_context.get('progress', {})
+        
+        # Generate contextual redirection response
+        redirect_response = focus_manager.generate_redirection_response(
+            drift_analysis=drift_analysis,
+            current_question=current_question_details,
+            assignment_context=assignment_context,
+            student_progress=student_progress
+        )
+        
+        # Add drift analysis info for debugging (can be removed in production)
+        if st.session_state.get('debug_mode', False):
+            with st.expander("🔍 Focus Analysis Debug", expanded=False):
+                st.json({
+                    "drift_score": drift_analysis["drift_score"],
+                    "drift_type": drift_analysis["drift_type"],
+                    "recommendation": drift_analysis["recommendation"],
+                    "confidence": drift_analysis["confidence"],
+                    "indicators": drift_analysis["indicators"][:3],  # Show first 3
+                    "focus_signals": drift_analysis["focus_signals"][:3]
+                })
+        
+        return redirect_response
+    
     # Build enhanced context for AI
     enhanced_context = f"""
 ASSIGNMENT CONTEXT:
@@ -33,30 +72,17 @@ ASSIGNMENT CONTEXT:
 - Bloom Level: {current_question_details.get('bloom_level', 'Not specified')}
 - Completed Questions: {', '.join(completed_questions) if completed_questions else 'None yet'}
 
+TUTORING GUIDANCE:
+{chr(10).join('- ' + prompt for prompt in current_question_details.get('tutoring_prompts', []))}
+
 COACHING GUIDELINES:
-1. Keep the conversation focused on the current question
+1. Keep the conversation focused on the current question (drift score: {drift_analysis['drift_score']:.2f})
 2. Guide the student to find specific evidence from the article
 3. Ask probing questions that develop critical thinking
-4. Discourage general discussion that doesn't advance the assignment
+4. Use the tutoring prompts above to guide your questioning strategy
 5. Help synthesize findings toward the writing goal
 6. Encourage academic analysis over summary
 """
-    
-    # Anti-rabbit-hole detection
-    rabbit_hole_keywords = ['generally', 'in general', 'what about', 'tell me about', 'explain', 'define']
-    is_potentially_diverging = any(keyword in user_input.lower() for keyword in rabbit_hole_keywords)
-    
-    if is_potentially_diverging and current_question_details:
-        # Redirect back to current question
-        redirect_response = f"""I understand you're curious about that topic, but let's stay focused on your assignment question to make the best use of our time.
-
-**Current Question ({current_question_id}):** {current_question_details.get('title', 'Question')}
-
-{current_question_details.get('prompt', 'No prompt available')}
-
-Based on your reading of the article, what specific evidence or examples did you find that relate to this question? Let's work on building your response systematically."""
-        
-        return redirect_response
     
     # Check if student is ready to move to next question
     message_count_on_current = len([msg for msg in chat_history if current_question_id in msg.get('content', '')])
@@ -315,6 +341,15 @@ def main():
             # Show assignment overview
             st.markdown(f"**{assignment_questions.get('assignment_title', 'Study Questions')}**")
             st.caption(f"Word Target: {assignment_questions.get('total_word_count', 'Not specified')}")
+            
+            # Debug mode toggle (for development/testing)
+            if user['type'] == 'Professor':
+                with st.expander("🔧 Debug Options", expanded=False):
+                    st.session_state['debug_mode'] = st.checkbox(
+                        "🔍 Show Focus Analysis", 
+                        value=st.session_state.get('debug_mode', False),
+                        help="Show detailed focus analysis for each student message (Professor only)"
+                    )
             
             # Show workflow steps if available
             workflow_steps = assignment_questions.get('workflow_steps', [])
