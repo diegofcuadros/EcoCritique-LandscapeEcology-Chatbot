@@ -9,21 +9,27 @@ from components.database import save_chat_session, get_articles, get_assignment_
 from components.student_engagement import StudentEngagementSystem
 from components.assessment_quality import AssessmentQualitySystem
 from components.focus_manager import FocusManager
+from components.advanced_socratic_engine import AdvancedSocraticEngine
+from components.learning_stage_detector import LearningStageDetector
+from components.progressive_questioning import ProgressiveQuestioningSystem
 import PyPDF2
 import io
 
 st.set_page_config(page_title="Student Chat", page_icon="📖", layout="wide")
 
 def generate_assignment_aware_response(user_input, chat_history, article_context, relevant_knowledge, assignment_context, chat_engine):
-    """Generate assignment-focused responses that guide students through structured questions"""
+    """Enhanced assignment-focused responses using Advanced Socratic Engine"""
     
     current_question_details = assignment_context.get('current_question_details', {})
     current_question_id = assignment_context.get('current_question')
     completed_questions = assignment_context.get('completed_questions', [])
     all_questions = assignment_context.get('all_questions', [])
     
-    # Initialize advanced focus manager
+    # Initialize Phase 3 components
     focus_manager = FocusManager()
+    learning_detector = LearningStageDetector()
+    progressive_system = ProgressiveQuestioningSystem()
+    socratic_engine = AdvancedSocraticEngine()
     
     # Analyze conversation drift with advanced multi-factor analysis
     drift_analysis = focus_manager.analyze_conversation_drift(
@@ -35,10 +41,7 @@ def generate_assignment_aware_response(user_input, chat_history, article_context
     
     # Check if intervention is needed
     if focus_manager.should_intervene(drift_analysis) and current_question_details:
-        # Get current student progress for context
         student_progress = assignment_context.get('progress', {})
-        
-        # Generate contextual redirection response
         redirect_response = focus_manager.generate_redirection_response(
             drift_analysis=drift_analysis,
             current_question=current_question_details,
@@ -46,88 +49,106 @@ def generate_assignment_aware_response(user_input, chat_history, article_context
             student_progress=student_progress
         )
         
-        # Add drift analysis info for debugging (can be removed in production)
+        # Debug mode display
         if st.session_state.get('debug_mode', False):
-            with st.expander("🔍 Focus Analysis Debug", expanded=False):
+            with st.expander("🔍 Advanced Analysis Debug", expanded=False):
                 st.json({
                     "drift_score": drift_analysis["drift_score"],
                     "drift_type": drift_analysis["drift_type"],
                     "recommendation": drift_analysis["recommendation"],
                     "confidence": drift_analysis["confidence"],
-                    "indicators": drift_analysis["indicators"][:3],  # Show first 3
+                    "indicators": drift_analysis["indicators"][:3],
                     "focus_signals": drift_analysis["focus_signals"][:3]
                 })
         
         return redirect_response
     
-    # Build enhanced context for AI
-    enhanced_context = f"""
+    # Assess student's learning stage
+    understanding_analysis = learning_detector.assess_understanding_level(
+        user_input=user_input,
+        chat_history=chat_history,
+        current_question=current_question_details
+    )
+    
+    evidence_stage = learning_detector.detect_evidence_gathering_stage(
+        user_input=user_input,
+        chat_history=chat_history
+    )
+    
+    # Generate progressive questioning strategy
+    bloom_questions = progressive_system.generate_bloom_appropriate_questions(
+        current_question=current_question_details,
+        student_level=understanding_analysis['understanding_level'],
+        article_context=article_context
+    )
+    
+    # Use Advanced Socratic Engine for contextualized response
+    try:
+        contextualized_response = socratic_engine.generate_contextualized_response(
+            user_input=user_input,
+            assignment_context=assignment_context,
+            student_progress=assignment_context.get('progress', {}),
+            chat_history=chat_history
+        )
+        
+        # Enhanced debug mode with Phase 3 insights
+        if st.session_state.get('debug_mode', False):
+            with st.expander("🧠 Learning Analysis Debug", expanded=False):
+                st.json({
+                    "understanding_level": understanding_analysis['understanding_level'],
+                    "confidence": understanding_analysis['confidence'],
+                    "evidence_quality": understanding_analysis['evidence_quality'],
+                    "evidence_stage": evidence_stage['stage'],
+                    "advancement_ready": evidence_stage['advancement_ready'],
+                    "bloom_level_rec": bloom_questions.get('recommended_level', 'unknown')
+                })
+        
+        return contextualized_response
+        
+    except Exception as e:
+        # Fallback to previous system if Advanced Engine fails
+        st.warning(f"Advanced system temporarily unavailable, using standard response")
+        
+        # Build enhanced context for fallback AI
+        enhanced_context = f"""
 ASSIGNMENT CONTEXT:
 - Assignment: {assignment_context.get('assignment_title', 'Study Questions')}
-- Target Length: {assignment_context.get('total_word_count', 'Not specified')}
 - Current Focus: Question {current_question_id}
 - Question Title: {current_question_details.get('title', 'No title')}
 - Question Prompt: {current_question_details.get('prompt', 'No prompt')}
 - Required Evidence: {current_question_details.get('required_evidence', 'No specific evidence required')}
 - Bloom Level: {current_question_details.get('bloom_level', 'Not specified')}
-- Completed Questions: {', '.join(completed_questions) if completed_questions else 'None yet'}
+- Student Understanding: {understanding_analysis.get('understanding_level', 'unknown')}
 
 TUTORING GUIDANCE:
 {chr(10).join('- ' + prompt for prompt in current_question_details.get('tutoring_prompts', []))}
 
 COACHING GUIDELINES:
-1. Keep the conversation focused on the current question (drift score: {drift_analysis['drift_score']:.2f})
-2. Guide the student to find specific evidence from the article
+1. Keep conversation focused on current question
+2. Guide student to find specific evidence from article
 3. Ask probing questions that develop critical thinking
-4. Use the tutoring prompts above to guide your questioning strategy
-5. Help synthesize findings toward the writing goal
-6. Encourage academic analysis over summary
+4. Help synthesize findings toward writing goal
+5. Encourage academic analysis over summary
 """
-    
-    # Check if student is ready to move to next question
-    message_count_on_current = len([msg for msg in chat_history if current_question_id in msg.get('content', '')])
-    
-    if message_count_on_current > 8:  # Substantial discussion on current question
-        # Check if student has good evidence and understanding
-        evidence_keywords = ['evidence', 'example', 'study shows', 'data', 'result', 'finding']
-        has_evidence = any(keyword in user_input.lower() for keyword in evidence_keywords)
         
-        if has_evidence:
-            # Suggest moving to next question
-            next_question_index = next((i for i, q in enumerate(all_questions) if q.get('id') == current_question_id), -1)
-            if next_question_index >= 0 and next_question_index + 1 < len(all_questions):
-                next_question = all_questions[next_question_index + 1]
-                
-                transition_response = f"""Excellent work on {current_question_id}! You've gathered solid evidence and shown good analytical thinking.
-
-Let's move forward to **{next_question['id']}: {next_question.get('title', 'Next Question')}**
-
-{next_question.get('prompt', 'No prompt available')}
-
-{f"**Required evidence:** {next_question.get('required_evidence', 'Use article content')}" if next_question.get('required_evidence') else ""}
-
-How does the article address this question? What specific information did you find relevant?"""
-                
-                return transition_response
-    
-    # Generate standard Socratic response with assignment context
-    base_response = chat_engine.generate_socratic_response(
-        user_input, 
-        chat_history,
-        article_context,
-        relevant_knowledge
-    )
-    
-    # Enhance with assignment-specific guidance
-    if current_question_details and current_question_id not in user_input:
-        assignment_reminder = f"""
-
-**Remember:** We're working on {current_question_id}: {current_question_details.get('title', 'Current Question')}
-Focus on finding specific evidence from the article that helps answer this question."""
+        # Generate standard response with enhanced context
+        base_response = chat_engine.generate_socratic_response(
+            user_input, 
+            chat_history,
+            article_context,
+            relevant_knowledge
+        )
         
-        return base_response + assignment_reminder
-    
-    return base_response
+        # Add assignment-specific guidance
+        if current_question_details and current_question_id not in user_input:
+            assignment_reminder = f"""
+
+**Focus:** We're working on {current_question_id}: {current_question_details.get('title', 'Current Question')}
+Find specific evidence from the article that helps answer this question."""
+            
+            return base_response + assignment_reminder
+        
+        return base_response
 
 def main():
     st.title("📖 Article Discussion Chat")
