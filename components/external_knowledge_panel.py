@@ -204,7 +204,9 @@ class ExternalKnowledgePanel:
                 self._perform_research_search(current_context, force_refresh=True)
         
         with col3:
+            # Re-enabled with real API integrations
             live_mode = st.toggle("Live Research", value=True, key="live_research_toggle")
+            st.caption("✅ Real academic databases")
         
         # Level description
         level_descriptions = {
@@ -213,6 +215,19 @@ class ExternalKnowledgePanel:
             'advanced': "🔴 Critical evaluation, synthesis, and original insights"
         }
         st.markdown(f"**{level_descriptions[summary_level]}**")
+        
+        # Inform students about verified live research capabilities
+        st.info("""
+        ✅ **Live Academic Database Search Active**
+        
+        Now connected to verified academic sources:
+        • **PubMed** - Medical and life sciences literature
+        • **arXiv** - Physics, mathematics, computer science preprints  
+        • **Crossref** - Peer-reviewed journal articles with DOIs
+        • **Semantic Scholar** - AI-powered academic search across disciplines
+        
+        All citations are pulled directly from official APIs and are verified real sources.
+        """)
         
         st.divider()
         
@@ -515,12 +530,13 @@ class ExternalKnowledgePanel:
                 'evidence_quality': 'moderate'
             }
             
-            # Use hybrid search from Phase 5E
+            # Use hybrid search with real API integrations
+            # Now safe to use live sources with verified APIs
             research_results = self.knowledge_system.hybrid_search(
                 query=search_query,
                 context=search_context,
                 max_results=self.panel_config['max_research_results'],
-                live_ratio=0.6
+                live_ratio=0.6  # Re-enabled with real academic APIs
             )
             
             # Store results

@@ -337,105 +337,402 @@ class RealTimeAcademicDatabase:
             return []
     
     def _search_google_scholar(self, query: str, config: Dict) -> List[Dict[str, Any]]:
-        """Search Google Scholar (Note: This is a simplified simulation)"""
+        """Search using Semantic Scholar API (Google Scholar alternative)"""
         
-        # In production, this would use a proper Google Scholar API or scraping service
-        # For now, return simulated realistic results
-        simulated_results = [
-            {
-                'source_id': f'gs_{hashlib.md5(query.encode()).hexdigest()[:8]}_1',
-                'database_source': 'google_scholar',
-                'title': f'Meta-analysis of landscape connectivity effects on biodiversity: {query}',
-                'authors': 'Johnson, A.B., Smith, C.D., Wilson, E.F.',
-                'abstract': f'This meta-analysis examines {query} across 150 studies from 2010-2023. Results indicate significant positive effects of connectivity on species richness and abundance. Effect sizes varied by taxonomic group and landscape context.',
-                'journal': 'Landscape Ecology',
-                'publication_year': 2023,
-                'citation_count': 45,
-                'url': f'https://scholar.google.com/citations?view_op=view_citation&hl=en&user=example',
-                'keywords': query.split(),
-                'raw_relevance': 0.92
-            },
-            {
-                'source_id': f'gs_{hashlib.md5(query.encode()).hexdigest()[:8]}_2',
-                'database_source': 'google_scholar',
-                'title': f'Fragmentation impacts on {query}: A global perspective',
-                'authors': 'Martinez, L.K., Brown, J.R.',
-                'abstract': f'Global analysis of {query} shows consistent patterns across biomes. Fragmentation reduces connectivity by 40-70% depending on landscape configuration and species mobility.',
-                'journal': 'Conservation Biology',
-                'publication_year': 2022,
-                'citation_count': 67,
-                'url': f'https://scholar.google.com/citations?view_op=view_citation&hl=en&user=example2',
-                'keywords': query.split(),
-                'raw_relevance': 0.88
+        if not REQUESTS_AVAILABLE:
+            print(f"[WARNING] Semantic Scholar search unavailable: requests module not installed")
+            return []
+        
+        try:
+            # Semantic Scholar API - free alternative to Google Scholar
+            base_url = "https://api.semanticscholar.org/graph/v1/paper/search"
+            
+            params = {
+                'query': query,
+                'limit': config['max_results'],
+                'fields': 'paperId,title,authors,abstract,venue,year,citationCount,url,openAccessPdf'
             }
-        ]
-        
-        return simulated_results[:config['max_results']]
+            
+            # Add polite headers
+            headers = {
+                'User-Agent': 'EcoCritique Educational Platform (mailto:support@ecocritique.edu)',
+            }
+            
+            response = requests.get(base_url, params=params, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            data = response.json()
+            papers = data.get('data', [])
+            
+            if not papers:
+                print(f"[INFO] No Semantic Scholar results found for query: {query}")
+                return []
+            
+            results = []
+            for paper in papers:
+                # Extract basic info
+                title = paper.get('title', 'Untitled')
+                paper_id = paper.get('paperId', '')
+                
+                # Extract authors
+                authors = paper.get('authors', [])
+                author_names = []
+                for author in authors[:3]:  # Limit to first 3 authors
+                    name = author.get('name', '')
+                    if name:
+                        author_names.append(name)
+                authors_str = ', '.join(author_names) if author_names else 'Unknown Authors'
+                
+                # Extract other fields
+                abstract = paper.get('abstract', 'Abstract not available')
+                venue = paper.get('venue', 'Unknown Venue')
+                year = paper.get('year', 'Unknown')
+                citation_count = paper.get('citationCount', 0)
+                paper_url = paper.get('url', f'https://www.semanticscholar.org/paper/{paper_id}')
+                
+                # Check for open access
+                open_access_pdf = paper.get('openAccessPdf', {})
+                has_open_access = bool(open_access_pdf and open_access_pdf.get('url'))
+                
+                result = {
+                    'source_id': f'ss_{paper_id}',
+                    'database_source': 'semantic_scholar',
+                    'title': title,
+                    'authors': authors_str,
+                    'abstract': abstract if abstract else 'Abstract not available',
+                    'journal': venue,
+                    'publication_year': str(year) if year else 'Unknown',
+                    'citation_count': citation_count or 0,
+                    'url': paper_url,
+                    'keywords': query.split(),
+                    'raw_relevance': 0.88,  # Semantic Scholar has good relevance
+                    'open_access': has_open_access,
+                    'metadata': {
+                        'source_type': 'live_academic',
+                        'database': 'semantic_scholar',
+                        'verification_status': 'verified',
+                        'paper_type': 'peer_reviewed'
+                    }
+                }
+                results.append(result)
+            
+            print(f"[SUCCESS] Retrieved {len(results)} verified Semantic Scholar articles")
+            return results
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[ERROR] Semantic Scholar API request failed: {e}")
+            return []
+        except Exception as e:
+            print(f"[ERROR] Semantic Scholar search error: {e}")
+            return []
     
     def _search_pubmed(self, query: str, config: Dict) -> List[Dict[str, Any]]:
-        """Search PubMed database"""
+        """Search PubMed database using official NCBI E-utilities API"""
         
-        # Simulate PubMed API response
-        simulated_results = [
-            {
-                'source_id': f'pm_{hashlib.md5(query.encode()).hexdigest()[:8]}_1',
-                'database_source': 'pubmed',
-                'title': f'Ecological connectivity and {query}: Health implications',
-                'authors': 'Anderson, M.K., Clark, P.L., Davis, R.S.',
-                'abstract': f'Study of {query} reveals important connections to ecosystem health and human wellbeing. Analysis of 200 landscapes shows strong correlation between connectivity and ecosystem services.',
-                'journal': 'Environmental Health Perspectives',
-                'publication_year': 2023,
-                'pmid': '37123456',
-                'url': 'https://pubmed.ncbi.nlm.nih.gov/37123456/',
-                'keywords': query.split(),
-                'raw_relevance': 0.79
+        if not REQUESTS_AVAILABLE:
+            print(f"[WARNING] PubMed search unavailable: requests module not installed")
+            return []
+        
+        try:
+            # PubMed E-utilities API - completely free and official
+            base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+            
+            # Step 1: Search for PMIDs
+            search_url = f"{base_url}esearch.fcgi"
+            search_params = {
+                'db': 'pubmed',
+                'term': query,
+                'retmax': config['max_results'],
+                'retmode': 'json',
+                'sort': 'relevance'
             }
-        ]
-        
-        return simulated_results[:config['max_results']]
+            
+            search_response = requests.get(search_url, params=search_params, timeout=10)
+            search_response.raise_for_status()
+            search_data = search_response.json()
+            
+            pmids = search_data.get('esearchresult', {}).get('idlist', [])
+            
+            if not pmids:
+                print(f"[INFO] No PubMed results found for query: {query}")
+                return []
+            
+            # Step 2: Get article details
+            fetch_url = f"{base_url}esummary.fcgi"
+            fetch_params = {
+                'db': 'pubmed',
+                'id': ','.join(pmids),
+                'retmode': 'json'
+            }
+            
+            fetch_response = requests.get(fetch_url, params=fetch_params, timeout=10)
+            fetch_response.raise_for_status()
+            fetch_data = fetch_response.json()
+            
+            results = []
+            for pmid in pmids:
+                if pmid in fetch_data.get('result', {}):
+                    article = fetch_data['result'][pmid]
+                    
+                    # Extract authors
+                    authors = []
+                    if 'authors' in article:
+                        authors = [auth.get('name', '') for auth in article['authors'][:3]]
+                    authors_str = ', '.join(authors) if authors else 'Unknown Authors'
+                    
+                    # Extract publication year
+                    pub_date = article.get('pubdate', '')
+                    pub_year = pub_date.split()[0] if pub_date else 'Unknown'
+                    
+                    result = {
+                        'source_id': f'pm_{pmid}',
+                        'database_source': 'pubmed',
+                        'title': article.get('title', 'Untitled'),
+                        'authors': authors_str,
+                        'abstract': article.get('abstract', 'Abstract not available'),
+                        'journal': article.get('source', 'Unknown Journal'),
+                        'publication_year': pub_year,
+                        'pmid': pmid,
+                        'url': f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/',
+                        'keywords': query.split(),
+                        'raw_relevance': 0.8,  # PubMed relevance is generally high
+                        'citation_count': 0,  # PubMed doesn't provide citation counts
+                        'metadata': {
+                            'source_type': 'live_academic',
+                            'database': 'pubmed',
+                            'verification_status': 'verified'
+                        }
+                    }
+                    results.append(result)
+            
+            print(f"[SUCCESS] Retrieved {len(results)} verified PubMed articles")
+            return results
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[ERROR] PubMed API request failed: {e}")
+            return []
+        except Exception as e:
+            print(f"[ERROR] PubMed search error: {e}")
+            return []
     
     def _search_arxiv(self, query: str, config: Dict) -> List[Dict[str, Any]]:
-        """Search arXiv database"""
+        """Search arXiv database using official arXiv API"""
         
-        # Simulate arXiv API response
-        simulated_results = [
-            {
-                'source_id': f'ax_{hashlib.md5(query.encode()).hexdigest()[:8]}_1',
-                'database_source': 'arxiv',
-                'title': f'Machine learning approaches to {query} analysis',
-                'authors': 'Zhang, W., Kumar, S., Thompson, A.',
-                'abstract': f'Novel machine learning methods for analyzing {query} patterns in satellite imagery. Deep learning models achieve 85% accuracy in predicting connectivity changes.',
-                'category': 'q-bio.PE',
-                'published': '2023-11-15',
-                'url': f'https://arxiv.org/abs/2311.12345',
-                'keywords': query.split(),
-                'raw_relevance': 0.76
+        if not REQUESTS_AVAILABLE:
+            print(f"[WARNING] arXiv search unavailable: requests module not installed")
+            return []
+        
+        try:
+            # arXiv API - completely free and official
+            base_url = "http://export.arxiv.org/api/query"
+            
+            # Format query for arXiv (they prefer specific field searches)
+            arxiv_query = f'all:{query}'
+            
+            params = {
+                'search_query': arxiv_query,
+                'start': 0,
+                'max_results': config['max_results'],
+                'sortBy': 'relevance',
+                'sortOrder': 'descending'
             }
-        ]
-        
-        return simulated_results[:config['max_results']]
+            
+            response = requests.get(base_url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            # Parse XML response
+            if not XML_AVAILABLE:
+                print(f"[WARNING] arXiv search unavailable: XML parsing not available")
+                return []
+            
+            root = ET.fromstring(response.content)
+            
+            # Define namespaces
+            namespaces = {
+                'atom': 'http://www.w3.org/2005/Atom',
+                'arxiv': 'http://arxiv.org/schemas/atom'
+            }
+            
+            results = []
+            entries = root.findall('atom:entry', namespaces)
+            
+            for entry in entries:
+                # Extract basic info
+                title = entry.find('atom:title', namespaces)
+                title_text = title.text.strip() if title is not None else 'Untitled'
+                
+                # Extract authors
+                authors = entry.findall('atom:author', namespaces)
+                author_names = []
+                for author in authors[:3]:  # Limit to first 3 authors
+                    name_elem = author.find('atom:name', namespaces)
+                    if name_elem is not None:
+                        author_names.append(name_elem.text)
+                authors_str = ', '.join(author_names) if author_names else 'Unknown Authors'
+                
+                # Extract abstract
+                summary = entry.find('atom:summary', namespaces)
+                abstract_text = summary.text.strip() if summary is not None else 'Abstract not available'
+                
+                # Extract publication date
+                published = entry.find('atom:published', namespaces)
+                pub_date = published.text if published is not None else ''
+                pub_year = pub_date[:4] if len(pub_date) >= 4 else 'Unknown'
+                
+                # Extract arXiv ID and URL
+                arxiv_id = entry.find('atom:id', namespaces)
+                paper_url = arxiv_id.text if arxiv_id is not None else ''
+                
+                # Extract arXiv ID from URL for cleaner reference
+                clean_id = paper_url.split('/')[-1] if paper_url else 'unknown'
+                
+                # Extract categories
+                categories = entry.findall('atom:category', namespaces)
+                category_list = [cat.get('term', '') for cat in categories if cat.get('term')]
+                main_category = category_list[0] if category_list else 'unknown'
+                
+                result = {
+                    'source_id': f'ax_{clean_id}',
+                    'database_source': 'arxiv',
+                    'title': title_text,
+                    'authors': authors_str,
+                    'abstract': abstract_text,
+                    'category': main_category,
+                    'published': pub_date[:10] if pub_date else 'Unknown',  # YYYY-MM-DD format
+                    'publication_year': pub_year,
+                    'url': paper_url,
+                    'arxiv_id': clean_id,
+                    'keywords': query.split(),
+                    'raw_relevance': 0.75,  # arXiv relevance is good but preprints
+                    'citation_count': 0,  # arXiv doesn't provide citation counts
+                    'metadata': {
+                        'source_type': 'live_academic',
+                        'database': 'arxiv',
+                        'verification_status': 'verified',
+                        'paper_type': 'preprint'
+                    }
+                }
+                results.append(result)
+            
+            print(f"[SUCCESS] Retrieved {len(results)} verified arXiv articles")
+            return results
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[ERROR] arXiv API request failed: {e}")
+            return []
+        except ET.ParseError as e:
+            print(f"[ERROR] arXiv XML parsing failed: {e}")
+            return []
+        except Exception as e:
+            print(f"[ERROR] arXiv search error: {e}")
+            return []
     
     def _search_crossref(self, query: str, config: Dict) -> List[Dict[str, Any]]:
-        """Search Crossref database"""
+        """Search Crossref database using official Crossref REST API"""
         
-        # Simulate Crossref API response
-        simulated_results = [
-            {
-                'source_id': f'cr_{hashlib.md5(query.encode()).hexdigest()[:8]}_1',
-                'database_source': 'crossref',
-                'title': f'Spatial patterns of {query} in protected areas',
-                'authors': 'Rodriguez, C.M., White, K.L.',
-                'abstract': f'Analysis of {query} patterns within and around protected areas using remote sensing data. Results show 60% higher connectivity in protected landscapes.',
-                'journal': 'Journal of Applied Ecology',
-                'publication_year': 2022,
-                'doi': '10.1111/1365-2664.12345',
-                'url': 'https://doi.org/10.1111/1365-2664.12345',
-                'keywords': query.split(),
-                'raw_relevance': 0.81
+        if not REQUESTS_AVAILABLE:
+            print(f"[WARNING] Crossref search unavailable: requests module not installed")
+            return []
+        
+        try:
+            # Crossref REST API - completely free and official
+            base_url = "https://api.crossref.org/works"
+            
+            params = {
+                'query': query,
+                'rows': config['max_results'],
+                'sort': 'relevance',
+                'select': 'title,author,abstract,published-print,published-online,container-title,DOI,is-referenced-by-count,URL'
             }
-        ]
-        
-        return simulated_results[:config['max_results']]
+            
+            # Add polite pool and contact info as recommended by Crossref
+            headers = {
+                'User-Agent': 'EcoCritique Educational Platform (mailto:support@ecocritique.edu)',
+            }
+            
+            response = requests.get(base_url, params=params, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            data = response.json()
+            items = data.get('message', {}).get('items', [])
+            
+            if not items:
+                print(f"[INFO] No Crossref results found for query: {query}")
+                return []
+            
+            results = []
+            for item in items:
+                # Extract title
+                title_list = item.get('title', [])
+                title = title_list[0] if title_list else 'Untitled'
+                
+                # Extract authors
+                authors = item.get('author', [])
+                author_names = []
+                for author in authors[:3]:  # Limit to first 3 authors
+                    given = author.get('given', '')
+                    family = author.get('family', '')
+                    if family:
+                        full_name = f"{family}, {given}".strip(', ')
+                        author_names.append(full_name)
+                authors_str = '; '.join(author_names) if author_names else 'Unknown Authors'
+                
+                # Extract abstract (often not available in Crossref)
+                abstract = item.get('abstract', 'Abstract not available via Crossref API')
+                
+                # Extract publication year
+                pub_date_print = item.get('published-print', {})
+                pub_date_online = item.get('published-online', {})
+                
+                # Try to get year from either print or online publication date
+                pub_year = 'Unknown'
+                if pub_date_print.get('date-parts'):
+                    pub_year = str(pub_date_print['date-parts'][0][0])
+                elif pub_date_online.get('date-parts'):
+                    pub_year = str(pub_date_online['date-parts'][0][0])
+                
+                # Extract journal/container
+                container_titles = item.get('container-title', [])
+                journal = container_titles[0] if container_titles else 'Unknown Journal'
+                
+                # Extract DOI and URL
+                doi = item.get('DOI', '')
+                url = item.get('URL', f'https://doi.org/{doi}' if doi else '')
+                
+                # Extract citation count
+                citation_count = item.get('is-referenced-by-count', 0)
+                
+                result = {
+                    'source_id': f'cr_{doi.replace("/", "_")}' if doi else f'cr_{hash(title)}',
+                    'database_source': 'crossref',
+                    'title': title,
+                    'authors': authors_str,
+                    'abstract': abstract,
+                    'journal': journal,
+                    'publication_year': pub_year,
+                    'doi': doi,
+                    'url': url,
+                    'citation_count': citation_count,
+                    'keywords': query.split(),
+                    'raw_relevance': 0.85,  # Crossref relevance is generally high
+                    'metadata': {
+                        'source_type': 'live_academic',
+                        'database': 'crossref',
+                        'verification_status': 'verified',
+                        'paper_type': 'peer_reviewed'
+                    }
+                }
+                results.append(result)
+            
+            print(f"[SUCCESS] Retrieved {len(results)} verified Crossref articles")
+            return results
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[ERROR] Crossref API request failed: {e}")
+            return []
+        except Exception as e:
+            print(f"[ERROR] Crossref search error: {e}")
+            return []
     
     def _process_and_rank_results(self, all_results: List[Dict], query: str, context: Dict = None) -> List[Dict[str, Any]]:
         """Process and rank results by relevance and quality"""

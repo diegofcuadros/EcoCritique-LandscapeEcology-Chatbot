@@ -1168,12 +1168,12 @@ What would be most helpful right now?"""
             'evidence_quality': response_analysis.get('evidence_quality', 'none')
         }
         
-        # PHASE 5E: Use hybrid search for live + static academic sources
+        # Re-enabled with real academic API integrations
         knowledge_results = self.enhanced_knowledge.hybrid_search(
             query=user_input + " " + current_question.get('title', ''),
             context=search_context,
             max_results=3,
-            live_ratio=0.6  # Prefer live academic sources
+            live_ratio=0.6  # Re-enabled with verified APIs
         )
         
         if not knowledge_results:
