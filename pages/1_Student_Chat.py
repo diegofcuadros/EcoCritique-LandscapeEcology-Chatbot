@@ -12,6 +12,8 @@ from components.focus_manager import FocusManager
 from components.advanced_socratic_engine import AdvancedSocraticEngine
 from components.learning_stage_detector import LearningStageDetector
 from components.progressive_questioning import ProgressiveQuestioningSystem
+from components.external_knowledge_panel import ExternalKnowledgePanel
+from components.enhanced_knowledge_system import EnhancedKnowledgeSystem
 import PyPDF2
 import io
 
@@ -222,6 +224,14 @@ def main():
     article_processor = get_article_processor()
     engagement_system = StudentEngagementSystem()
     assessment_system = AssessmentQualitySystem()
+    
+    # Initialize Enhanced Knowledge System and External Knowledge Panel
+    try:
+        enhanced_knowledge = EnhancedKnowledgeSystem()
+        external_knowledge_panel = ExternalKnowledgePanel(enhanced_knowledge)
+    except Exception as e:
+        st.warning(f"Enhanced Knowledge Panel temporarily unavailable: {e}")
+        external_knowledge_panel = None
     
     # Initialize chat session
     initialize_chat_session()
@@ -484,10 +494,10 @@ def main():
             reset_chat_session()
     
     # Main chat interface
-    display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system, assessment_system)
+    display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system, assessment_system, external_knowledge_panel)
 
-def display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system, assessment_system):
-    """Display the main chat interface with engagement features"""
+def display_chat_interface(chat_engine, rag_system, article_processor, user, engagement_system, assessment_system, external_knowledge_panel):
+    """Display the main chat interface with engagement features and external knowledge panel"""
     
     # Check if article is loaded
     current_article = st.session_state.get('current_article')
@@ -626,6 +636,58 @@ def display_chat_interface(chat_engine, rag_system, article_processor, user, eng
         engagement_system.display_peer_insights(current_article['title'])
     
     st.divider()
+    
+    # External Knowledge Panel Integration
+    if external_knowledge_panel:
+        # Create assignment context for the panel
+        assignment_questions = st.session_state.get('assignment_questions')
+        assignment_progress = st.session_state.get('assignment_progress', {})
+        
+        if assignment_questions:
+            current_question = assignment_progress.get('current_question')
+            questions = assignment_questions.get('questions', [])
+            
+            # Build context for external knowledge panel
+            panel_context = {
+                'assignment_title': assignment_questions.get('assignment_title'),
+                'current_question': current_question,
+                'all_questions': questions,
+                'workflow_steps': assignment_questions.get('workflow_steps', []),
+                'total_word_count': assignment_questions.get('total_word_count')
+            }
+            
+            # Find current question details
+            if current_question:
+                for q in questions:
+                    if q.get('id') == current_question:
+                        panel_context['current_question_details'] = q
+                        break
+            
+            # Render the External Knowledge Panel with assignment context
+            external_knowledge_panel.render_panel(
+                current_context=panel_context,
+                student_id=user['id'],
+                session_id=st.session_state.get('session_id')
+            )
+        else:
+            # Render panel without assignment context (basic article discussion)
+            panel_context = {
+                'article_title': current_article['title'],
+                'article_id': st.session_state.get('current_article_id'),
+                'current_question_details': {
+                    'title': f"General discussion of {current_article['title']}",
+                    'key_concepts': st.session_state.get('key_concepts', []),
+                    'bloom_level': 'analyze'
+                }
+            }
+            
+            external_knowledge_panel.render_panel(
+                current_context=panel_context,
+                student_id=user['id'],
+                session_id=st.session_state.get('session_id')
+            )
+        
+        st.divider()
     
     # Chat messages display
     chat_container = st.container()
