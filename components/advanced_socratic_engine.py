@@ -15,6 +15,7 @@ from components.writing_preparation_system import WritingPreparationSystem
 from components.personalization_engine import PersonalizationEngine
 from components.conversation_checkpoint import ConversationCheckpoint
 from components.adaptive_difficulty import AdaptiveDifficultyEngine
+from components.enhanced_knowledge_system import EnhancedKnowledgeSystem
 
 class AdvancedSocraticEngine:
     """Context-aware Socratic questioning with assignment integration"""
@@ -27,6 +28,7 @@ class AdvancedSocraticEngine:
         self.personalization_engine = PersonalizationEngine()
         self.conversation_checkpoint = ConversationCheckpoint()
         self.adaptive_difficulty = AdaptiveDifficultyEngine()
+        self.enhanced_knowledge = EnhancedKnowledgeSystem()
         
         # Response generation strategies by learning stage
         self.response_strategies = {
@@ -191,6 +193,14 @@ class AdvancedSocraticEngine:
                 user_input, current_question, learning_stage, response_analysis, 
                 strategy, assignment_context, chat_history, personalized_strategy
             )
+            
+            # ENHANCED KNOWLEDGE: Add relevant external knowledge if appropriate
+            if self._should_provide_external_knowledge(user_input, response_analysis, strategy):
+                external_knowledge = self._get_enhanced_knowledge_response(
+                    user_input, current_question, assignment_context, response_analysis
+                )
+                if external_knowledge:
+                    response += f"\n\n{external_knowledge}"
         
         # Update student profile with session data
         if student_id and student_profile:
@@ -1114,3 +1124,271 @@ Feel free to ask about:
 • How to organize your thoughts
 
 What would be most helpful right now?"""
+
+    # ==================== ENHANCED KNOWLEDGE INTEGRATION METHODS ====================
+    
+    def _should_provide_external_knowledge(self, user_input: str, response_analysis: Dict, strategy: str) -> bool:
+        """Determine if external knowledge should be provided based on context and student needs"""
+        
+        # Provide external knowledge when:
+        # 1. Student is ready for advanced synthesis
+        if strategy in ['synthesis_and_connections', 'advanced_synthesis']:
+            return True
+            
+        # 2. Student is struggling with evidence gathering but has shown basic comprehension
+        if (strategy in ['evidence_discovery', 'guided_evidence_gathering'] and 
+            response_analysis.get('analytical_depth', 'surface') != 'surface'):
+            return True
+            
+        # 3. Student is asking for deeper information
+        knowledge_seeking_phrases = [
+            'more information', 'additional sources', 'other studies', 'further research',
+            'what else', 'other examples', 'broader context', 'literature', 'research shows'
+        ]
+        if any(phrase in user_input.lower() for phrase in knowledge_seeking_phrases):
+            return True
+            
+        # 4. Student has provided good evidence but needs broader context
+        if (response_analysis.get('evidence_quality', 'none') in ['good', 'strong'] and
+            response_analysis.get('analytical_depth', 'surface') in ['moderate', 'deep']):
+            return True
+            
+        return False
+    
+    def _get_enhanced_knowledge_response(self, user_input: str, current_question: Dict, 
+                                       assignment_context: Dict, response_analysis: Dict) -> str:
+        """Generate enhanced knowledge response with educational summaries and source links"""
+        
+        # Create search context from current question and student input
+        search_context = {
+            'question_focus': current_question.get('title', ''),
+            'key_concepts': current_question.get('key_concepts', []),
+            'bloom_level': current_question.get('bloom_level', 'analyze'),
+            'student_comprehension_level': response_analysis.get('analytical_depth', 'surface'),
+            'evidence_quality': response_analysis.get('evidence_quality', 'none')
+        }
+        
+        # PHASE 5E: Use hybrid search for live + static academic sources
+        knowledge_results = self.enhanced_knowledge.hybrid_search(
+            query=user_input + " " + current_question.get('title', ''),
+            context=search_context,
+            max_results=3,
+            live_ratio=0.6  # Prefer live academic sources
+        )
+        
+        if not knowledge_results:
+            return ""
+        
+        # PHASE 5B: Generate enhanced educational summary with multi-level support
+        if self._should_use_enhanced_summary(user_input, response_analysis, search_context):
+            # Determine appropriate complexity level
+            complexity_level = self._determine_summary_complexity(response_analysis, search_context)
+            
+            # Generate comprehensive educational summary
+            enhanced_summary = self.enhanced_knowledge.generate_comprehensive_educational_summary(
+                knowledge_results, search_context, complexity_level
+            )
+            
+            response = self._format_enhanced_educational_summary(enhanced_summary, search_context)
+        else:
+            # Generate dual-mode presentation as requested by user (Phase 5A)
+            response = self._format_dual_mode_knowledge_presentation(knowledge_results, search_context)
+        
+        return response
+    
+    def _format_dual_mode_knowledge_presentation(self, knowledge_results: List[Dict], 
+                                               search_context: Dict) -> str:
+        """Format external knowledge in two ways: educational summary + source links"""
+        
+        if not knowledge_results:
+            return ""
+        
+        # Generate educational summary
+        educational_summary = self.enhanced_knowledge.generate_educational_summary(
+            knowledge_results, search_context
+        )
+        
+        # Extract source links and citations
+        source_links = []
+        for result in knowledge_results:
+            if result.get('metadata', {}).get('source_url'):
+                source_links.append({
+                    'title': result.get('metadata', {}).get('title', 'Academic Source'),
+                    'url': result['metadata']['source_url'],
+                    'relevance': result.get('relevance_score', 0.0)
+                })
+        
+        # Format the dual-mode presentation
+        knowledge_response = f"""
+## 📚 Additional Context from Literature
+
+### Educational Summary
+{educational_summary}
+
+### Source References & Further Reading
+"""
+        
+        if source_links:
+            knowledge_response += "**External Sources:**\n"
+            for i, source in enumerate(source_links[:3], 1):  # Show top 3 sources
+                relevance_indicator = "🎯" if source['relevance'] > 0.8 else "📖" if source['relevance'] > 0.6 else "📝"
+                knowledge_response += f"{i}. {relevance_indicator} [{source['title']}]({source['url']}) (relevance: {source['relevance']:.1f})\n"
+        else:
+            knowledge_response += "**Note:** External source links will be available when connected to academic databases.\n"
+        
+        knowledge_response += f"""
+**How to use this information:** This additional context can help strengthen your analysis, but remember to focus primarily on evidence from your assigned article. Use external sources to:
+• Validate or challenge findings from your article
+• Provide broader context for your analysis  
+• Support deeper analytical insights
+• Make connections to established research patterns
+"""
+        
+        return knowledge_response
+    
+    def get_knowledge_system_debug_info(self, search_query: str, results_count: int) -> str:
+        """Generate debug information about knowledge system performance for professors"""
+        
+        # PHASE 5E: Get comprehensive database health including live databases
+        system_status = self.enhanced_knowledge.get_database_health_status()
+        
+        debug_info = f"""## 🔍 Enhanced Knowledge System Debug Info (Phase 5E)
+
+**Last Search Query**: "{search_query}"
+**Results Retrieved**: {results_count}
+
+**Static Knowledge Base**:
+• Status: {system_status.get('static_knowledge_base', {}).get('status', 'unknown')}
+• Total Entries: {system_status.get('static_knowledge_base', {}).get('total_entries', 0)}
+• Semantic Search: {system_status.get('static_knowledge_base', {}).get('semantic_search_enabled', False)}
+
+**Live Academic Databases**:"""
+        
+        # Add live database status
+        live_databases = system_status.get('live_academic_databases', {})
+        for db_name, db_status in live_databases.items():
+            status_indicator = "✓" if db_status.get('status') == 'operational' else "✗" if db_status.get('status') == 'error' else "⚠"
+            debug_info += f"\n• {db_name}: {status_indicator} {db_status.get('status', 'unknown')}"
+        
+        debug_info += f"""
+
+**System Health**: {system_status.get('overall_system_health', 'unknown')}
+**Last Updated**: {system_status.get('last_updated', 'N/A')[:19]}
+"""
+        
+        return debug_info
+    
+    # ==================== PHASE 5B: ENHANCED EDUCATIONAL SUMMARIES ====================
+    
+    def _should_use_enhanced_summary(self, user_input: str, response_analysis: Dict, search_context: Dict) -> bool:
+        """Determine if enhanced educational summary should be used instead of basic dual-mode"""
+        
+        # Use enhanced summary for:
+        # 1. Students with good evidence but requesting deeper understanding
+        if (response_analysis.get('evidence_quality', 'none') in ['moderate', 'strong'] and
+            any(phrase in user_input.lower() for phrase in ['understand better', 'more depth', 'comprehensive', 'complete picture'])):
+            return True
+        
+        # 2. Advanced analysis or synthesis tasks
+        bloom_level = search_context.get('bloom_level', 'analyze')
+        if bloom_level in ['evaluate', 'create']:
+            return True
+        
+        # 3. Students explicitly requesting summaries or overviews
+        summary_request_phrases = [
+            'summary', 'overview', 'synthesize', 'put together', 'comprehensive view',
+            'big picture', 'integrate', 'connections between', 'how it all relates'
+        ]
+        if any(phrase in user_input.lower() for phrase in summary_request_phrases):
+            return True
+        
+        # 4. Multiple high-quality knowledge sources available (good for synthesis)
+        return False  # Default to dual-mode for now
+    
+    def _determine_summary_complexity(self, response_analysis: Dict, search_context: Dict) -> str:
+        """Determine appropriate summary complexity level based on student analysis"""
+        
+        bloom_level = search_context.get('bloom_level', 'analyze')
+        comprehension_level = response_analysis.get('analytical_depth', 'surface')
+        evidence_quality = response_analysis.get('evidence_quality', 'none')
+        
+        # Advanced level for sophisticated students
+        if (comprehension_level == 'deep' and evidence_quality in ['strong'] and 
+            bloom_level in ['evaluate', 'create']):
+            return 'advanced'
+        
+        # Foundational level for students building understanding
+        elif (comprehension_level == 'surface' and evidence_quality in ['none', 'weak'] and
+              bloom_level in ['remember', 'understand']):
+            return 'foundational'
+        
+        # Intermediate level for most cases
+        else:
+            return 'intermediate'
+    
+    def _format_enhanced_educational_summary(self, enhanced_summary: Dict, search_context: Dict) -> str:
+        """Format enhanced educational summary for display to students"""
+        
+        if 'error' in enhanced_summary:
+            return f"## 📚 Enhanced Learning Context\n\n{enhanced_summary.get('structured_content', 'Summary unavailable')}"
+        
+        summary_level = enhanced_summary.get('summary_level', 'intermediate')
+        structured_content = enhanced_summary.get('structured_content', '')
+        concept_map = enhanced_summary.get('concept_map', {})
+        pedagogical_guidance = enhanced_summary.get('pedagogical_guidance', {})
+        learning_objectives = enhanced_summary.get('learning_objectives', [])
+        
+        # Format the enhanced summary
+        formatted_response = f"""
+## 📚 Enhanced Educational Summary ({summary_level.title()} Level)
+
+{structured_content}
+
+### 🧠 Concept Connections
+"""
+        
+        # Add concept map information
+        central_concepts = concept_map.get('central_concepts', [])
+        if central_concepts:
+            formatted_response += f"**Key Concepts:** {', '.join(central_concepts[:3])}\n\n"
+            
+            relationships = concept_map.get('relationships', [])
+            if relationships:
+                formatted_response += "**Concept Relationships:**\n"
+                for rel in relationships[:3]:  # Show top 3 relationships
+                    formatted_response += f"• {rel['concept_a']} **{rel['relationship_type']}** {rel['concept_b']}\n"
+                formatted_response += "\n"
+        
+        # Add learning guidance
+        if pedagogical_guidance:
+            how_to_use = pedagogical_guidance.get('how_to_use', '')
+            if how_to_use:
+                formatted_response += f"### 🎯 How to Use This Summary\n{how_to_use}\n\n"
+            
+            learning_strategies = pedagogical_guidance.get('learning_strategies', [])
+            if learning_strategies:
+                formatted_response += f"### 📖 Learning Strategies\n"
+                for strategy in learning_strategies[:3]:
+                    formatted_response += f"• {strategy}\n"
+                formatted_response += "\n"
+        
+        # Add learning objectives
+        if learning_objectives:
+            formatted_response += f"### 🎯 Learning Objectives\n"
+            for i, objective in enumerate(learning_objectives, 1):
+                formatted_response += f"{i}. {objective}\n"
+            formatted_response += "\n"
+        
+        # Add next steps
+        follow_up_questions = enhanced_summary.get('follow_up_questions', [])
+        if follow_up_questions:
+            formatted_response += f"### 🤔 Questions for Deeper Thinking\n"
+            for question in follow_up_questions[:3]:
+                formatted_response += f"• {question}\n"
+        
+        formatted_response += f"""
+
+**Remember:** This enhanced summary provides broader context to support your analysis. Continue to focus on evidence from your assigned reading while using this background to strengthen your understanding and develop deeper insights.
+"""
+        
+        return formatted_response

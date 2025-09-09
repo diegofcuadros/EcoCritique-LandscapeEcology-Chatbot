@@ -116,6 +116,37 @@ def generate_assignment_aware_response(user_input, chat_history, article_context
                     
                     st.markdown(personalization_debug)
                     
+                    # ENHANCED KNOWLEDGE DEBUG: Show knowledge system performance
+                    st.markdown("---")
+                    try:
+                        # Get search query from user input
+                        search_query = user_input + " " + assignment_context.get('current_question_details', {}).get('title', '')
+                        
+                        # Perform test search to get results count
+                        test_search_context = {
+                            'question_focus': assignment_context.get('current_question_details', {}).get('title', ''),
+                            'key_concepts': assignment_context.get('current_question_details', {}).get('key_concepts', []),
+                            'bloom_level': assignment_context.get('current_question_details', {}).get('bloom_level', 'analyze'),
+                            'student_comprehension_level': 'surface',
+                            'evidence_quality': 'none'
+                        }
+                        
+                        test_results = socratic_engine.enhanced_knowledge.semantic_search(
+                            query=search_query,
+                            context=test_search_context,
+                            top_k=3
+                        )
+                        
+                        knowledge_debug = socratic_engine.get_knowledge_system_debug_info(
+                            search_query[:100], len(test_results)
+                        )
+                        
+                        st.markdown(knowledge_debug)
+                        
+                    except Exception as knowledge_debug_e:
+                        st.error(f"Enhanced Knowledge Debug unavailable: {knowledge_debug_e}")
+                        st.markdown("## 🔍 Knowledge System Debug Info\n**Status**: Enhanced knowledge system initializing...")
+                    
                 except Exception as debug_e:
                     st.error(f"Debug info unavailable: {debug_e}")
                     # Fallback debug info
