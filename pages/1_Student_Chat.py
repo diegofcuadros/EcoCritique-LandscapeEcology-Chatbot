@@ -84,24 +84,47 @@ def generate_assignment_aware_response(user_input, chat_history, article_context
     
     # Use Advanced Socratic Engine for contextualized response
     try:
+        # Generate session ID for checkpoint tracking
+        session_id = st.session_state.get('session_id')
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            st.session_state.session_id = session_id
+        
         contextualized_response = socratic_engine.generate_contextualized_response(
             user_input=user_input,
             assignment_context=assignment_context,
             student_progress=assignment_context.get('progress', {}),
-            chat_history=chat_history
+            chat_history=chat_history,
+            student_id=user['id'],
+            session_id=session_id
         )
         
-        # Enhanced debug mode with Phase 3 insights
+        # Enhanced debug mode with Phase 4 personalization insights
         if st.session_state.get('debug_mode', False):
-            with st.expander("🧠 Learning Analysis Debug", expanded=False):
-                st.json({
-                    "understanding_level": understanding_analysis['understanding_level'],
-                    "confidence": understanding_analysis['confidence'],
-                    "evidence_quality": understanding_analysis['evidence_quality'],
-                    "evidence_stage": evidence_stage['stage'],
-                    "advancement_ready": evidence_stage['advancement_ready'],
-                    "bloom_level_rec": bloom_questions.get('recommended_level', 'unknown')
-                })
+            with st.expander("🧠 Personalized Learning Analysis Debug", expanded=False):
+                try:
+                    # Get personalization debug info from the engine
+                    student_profile = socratic_engine.personalization_engine.get_or_create_student_profile(user['id'])
+                    performance_assessment = socratic_engine.adaptive_difficulty.assess_current_performance(
+                        user_input, chat_history, assignment_context.get('current_question_details', {})
+                    )
+                    
+                    personalization_debug = socratic_engine.get_personalization_debug_info(
+                        user['id'], performance_assessment, student_profile
+                    )
+                    
+                    st.markdown(personalization_debug)
+                    
+                except Exception as debug_e:
+                    st.error(f"Debug info unavailable: {debug_e}")
+                    # Fallback debug info
+                    st.json({
+                        "session_id": session_id,
+                        "user_id": user['id'],
+                        "chat_length": len(chat_history),
+                        "personalization": "available"
+                    })
         
         return contextualized_response
         

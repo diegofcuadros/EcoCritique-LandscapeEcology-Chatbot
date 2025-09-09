@@ -12,6 +12,9 @@ from components.learning_stage_detector import LearningStageDetector
 from components.progressive_questioning import ProgressiveQuestioningSystem
 from components.evidence_guidance_system import EvidenceGuidanceSystem
 from components.writing_preparation_system import WritingPreparationSystem
+from components.personalization_engine import PersonalizationEngine
+from components.conversation_checkpoint import ConversationCheckpoint
+from components.adaptive_difficulty import AdaptiveDifficultyEngine
 
 class AdvancedSocraticEngine:
     """Context-aware Socratic questioning with assignment integration"""
@@ -21,6 +24,9 @@ class AdvancedSocraticEngine:
         self.questioning_system = ProgressiveQuestioningSystem()
         self.evidence_guidance = EvidenceGuidanceSystem()
         self.writing_preparation = WritingPreparationSystem()
+        self.personalization_engine = PersonalizationEngine()
+        self.conversation_checkpoint = ConversationCheckpoint()
+        self.adaptive_difficulty = AdaptiveDifficultyEngine()
         
         # Response generation strategies by learning stage
         self.response_strategies = {
@@ -50,8 +56,8 @@ class AdvancedSocraticEngine:
             }
         }
         
-        # Evidence guidance templates
-        self.evidence_guidance = {
+        # Evidence guidance templates (legacy)
+        self.evidence_guidance_templates = {
             "no_evidence": {
                 "guidance": "Let's find specific evidence from the article to support your thinking.",
                 "questions": [
@@ -95,18 +101,21 @@ class AdvancedSocraticEngine:
         }
     
     def generate_contextualized_response(self, user_input: str, assignment_context: Dict, 
-                                       student_progress: Dict, chat_history: List[Dict]) -> str:
+                                       student_progress: Dict, chat_history: List[Dict], 
+                                       student_id: str = None, session_id: str = None) -> str:
         """
-        Generate responses aware of assignment requirements and student progress
+        Enhanced response generation with personalization and checkpoint management
         
         Args:
             user_input: Student's current message
             assignment_context: Full assignment context including current question
             student_progress: Student's progress through assignment
             chat_history: Complete conversation history
+            student_id: Student identifier for personalization
+            session_id: Session identifier for checkpoint tracking
             
         Returns:
-            Contextually appropriate Socratic response
+            Personalized, contextually appropriate response
         """
         
         # Get current question details
@@ -114,6 +123,31 @@ class AdvancedSocraticEngine:
         
         if not current_question:
             return self._generate_generic_response(user_input, chat_history)
+        
+        # CHECKPOINT: Check if we need to trigger a conversation checkpoint
+        if (student_id and session_id and 
+            self.conversation_checkpoint.should_trigger_checkpoint(chat_history, session_id)):
+            
+            return self._generate_checkpoint_response(
+                user_input, chat_history, current_question, assignment_context, student_id, session_id
+            )
+        
+        # PERSONALIZATION: Get or create student profile
+        student_profile = {}
+        if student_id:
+            student_profile = self.personalization_engine.get_or_create_student_profile(student_id)
+        
+        # ADAPTIVE DIFFICULTY: Assess current performance
+        performance_assessment = self.adaptive_difficulty.assess_current_performance(
+            user_input, chat_history, current_question
+        )
+        
+        # Generate personalized strategy
+        personalized_strategy = {}
+        if student_profile:
+            personalized_strategy = self.personalization_engine.generate_personalized_strategy(
+                student_profile, current_question, chat_history
+            )
         
         # Assess student's learning stage
         learning_stage = self.stage_detector.get_learning_stage_summary(
@@ -125,9 +159,9 @@ class AdvancedSocraticEngine:
             user_input, current_question, chat_history
         )
         
-        # Determine appropriate questioning strategy
-        strategy = self._select_questioning_strategy(
-            learning_stage, response_analysis, current_question
+        # Determine appropriate questioning strategy (now personalized)
+        strategy = self._select_personalized_questioning_strategy(
+            learning_stage, response_analysis, current_question, personalized_strategy, performance_assessment
         )
         
         # Check for writing preparation readiness
@@ -135,12 +169,11 @@ class AdvancedSocraticEngine:
             chat_history, current_question, assignment_context
         )
         
-        # If student shows high readiness and hasn't been offered writing support yet
+        # WRITING PREPARATION: Check if ready for writing support
         if (writing_readiness['completion_score'] >= 0.6 and 
             writing_readiness['current_phase'] in ['outline_creation', 'draft_preparation', 'writing_ready'] and
             not any('outline' in msg.get('content', '').lower() for msg in chat_history[-5:])):
             
-            # Offer writing transition support
             response = self.generate_writing_transition_response(
                 chat_history, current_question, assignment_context
             )
@@ -153,10 +186,21 @@ class AdvancedSocraticEngine:
                 response = self.generate_writing_transition_response(chat_history, current_question, assignment_context)
         
         else:
-            # Generate standard contextual response
-            response = self._generate_strategy_based_response(
-                user_input, current_question, learning_stage, response_analysis, strategy, assignment_context, chat_history
+            # Generate personalized contextual response
+            response = self._generate_personalized_strategy_based_response(
+                user_input, current_question, learning_stage, response_analysis, 
+                strategy, assignment_context, chat_history, personalized_strategy
             )
+        
+        # Update student profile with session data
+        if student_id and student_profile:
+            session_data = {
+                'chat_history': chat_history,
+                'current_performance': performance_assessment,
+                'concepts_covered': current_question.get('key_concepts', []),
+                'overall_performance': performance_assessment.get('overall_performance', 0.5)
+            }
+            self.personalization_engine.update_student_profile(student_profile, session_data)
         
         return response
     
@@ -247,8 +291,8 @@ class AdvancedSocraticEngine:
         
         if not user_attempts:
             guidance["evidence_quality"] = "none"
-            guidance["specific_guidance"] = self.evidence_guidance["no_evidence"]["guidance"]
-            guidance["guided_questions"] = self.evidence_guidance["no_evidence"]["questions"]
+            guidance["specific_guidance"] = self.evidence_guidance_templates["no_evidence"]["guidance"]
+            guidance["guided_questions"] = self.evidence_guidance_templates["no_evidence"]["questions"]
             return guidance
         
         # Analyze evidence quality in recent attempts
@@ -258,8 +302,8 @@ class AdvancedSocraticEngine:
         guidance["evidence_quality"] = evidence_quality
         
         # Provide appropriate guidance based on quality
-        if evidence_quality in self.evidence_guidance:
-            guidance_template = self.evidence_guidance[evidence_quality]
+        if evidence_quality in self.evidence_guidance_templates:
+            guidance_template = self.evidence_guidance_templates[evidence_quality]
             guidance["specific_guidance"] = guidance_template["guidance"]
             guidance["guided_questions"] = guidance_template["questions"]
         
@@ -858,3 +902,215 @@ Good luck with your writing!"""
             formatted_summary += f"   *Context:* {evidence['context'][:100]}...\n\n"
         
         return formatted_summary
+    
+    def _generate_checkpoint_response(self, user_input: str, chat_history: List[Dict],
+                                    current_question: Dict, assignment_context: Dict,
+                                    student_id: str, session_id: str) -> str:
+        """Generate conversation checkpoint response every 5 questions"""
+        
+        # Generate conversation summary
+        summary_data = self.conversation_checkpoint.generate_conversation_summary(
+            chat_history, current_question, assignment_context
+        )
+        
+        # Record checkpoint
+        self.conversation_checkpoint.record_checkpoint(student_id, session_id, summary_data)
+        
+        # Generate checkpoint response
+        checkpoint_response = self.conversation_checkpoint.generate_checkpoint_response(
+            summary_data, current_question, assignment_context
+        )
+        
+        return checkpoint_response
+    
+    def _select_personalized_questioning_strategy(self, learning_stage: Dict, response_analysis: Dict,
+                                                current_question: Dict, personalized_strategy: Dict,
+                                                performance_assessment: Dict) -> str:
+        """Select questioning strategy based on personalization and performance"""
+        
+        # Start with base strategy selection
+        base_strategy = self._select_questioning_strategy(learning_stage, response_analysis, current_question)
+        
+        # Adjust based on personalized strategy
+        if personalized_strategy:
+            priority_focus = personalized_strategy.get('priority_focus')
+            if priority_focus:
+                return priority_focus
+            
+            # Adjust based on learning style
+            learning_style = personalized_strategy.get('language_style', 'adaptive_varied')
+            if learning_style == 'visual_scaffolding':
+                return 'visual_evidence_discovery'
+            elif learning_style == 'analytical_precise':
+                return 'quantitative_analysis'
+            elif learning_style == 'theoretical_exploratory':
+                return 'concept_clarification'
+            elif learning_style == 'practical_contextual':
+                return 'applied_evidence_gathering'
+        
+        # Adjust based on performance assessment
+        struggles = performance_assessment.get('specific_struggles', [])
+        if 'finding_relevant_evidence' in struggles:
+            return 'guided_evidence_gathering'
+        elif 'developing_analytical_insights' in struggles:
+            return 'analytical_thinking'
+        elif 'basic_concept_understanding' in struggles:
+            return 'concept_clarification'
+        
+        return base_strategy
+    
+    def _generate_personalized_strategy_based_response(self, user_input: str, current_question: Dict,
+                                                     learning_stage: Dict, response_analysis: Dict,
+                                                     strategy: str, assignment_context: Dict,
+                                                     chat_history: List[Dict], personalized_strategy: Dict) -> str:
+        """Generate response using personalized strategy"""
+        
+        # Get base response
+        base_response = self._generate_strategy_based_response(
+            user_input, current_question, learning_stage, response_analysis,
+            strategy, assignment_context, chat_history
+        )
+        
+        if not personalized_strategy:
+            return base_response
+        
+        # Add personalized touches based on learning style
+        learning_style = personalized_strategy.get('language_style', 'adaptive_varied')
+        
+        if learning_style == 'descriptive_visual':
+            # Add visual language
+            visual_prompts = [
+                "Can you visualize what this looks like in the landscape?",
+                "Picture the spatial relationships described in the article.",
+                "What patterns do you see emerging from this evidence?"
+            ]
+            import random
+            base_response += f"\n\n💡 {random.choice(visual_prompts)}"
+        
+        elif learning_style == 'analytical_precise':
+            # Add quantitative focus
+            analytical_prompts = [
+                "What specific numbers or measurements support this point?",
+                "How would you quantify this relationship?",
+                "What data could strengthen your analysis?"
+            ]
+            import random
+            base_response += f"\n\n📊 {random.choice(analytical_prompts)}"
+        
+        elif learning_style == 'practical_contextual':
+            # Add real-world applications
+            practical_prompts = [
+                "How might this apply to real conservation efforts?",
+                "What practical implications does this have?",
+                "Can you think of a real-world example of this concept?"
+            ]
+            import random
+            base_response += f"\n\n🌍 {random.choice(practical_prompts)}"
+        
+        # Add difficulty-appropriate scaffolding
+        scaffolding_level = personalized_strategy.get('scaffolding_level', 'medium')
+        if scaffolding_level == 'high':
+            base_response += f"\n\n**Let's break this down step by step** to make it more manageable."
+        elif scaffolding_level == 'low':
+            base_response += f"\n\n**I'm confident you can take this further** - what's your next insight?"
+        
+        return base_response
+    
+    def get_personalization_debug_info(self, student_id: str, performance_assessment: Dict,
+                                     student_profile: Dict) -> str:
+        """Generate debug information about personalization for professors"""
+        
+        if not student_profile:
+            return "No personalization profile available"
+        
+        # Get personalization summary
+        profile_summary = self.personalization_engine.get_personalization_summary(student_profile)
+        
+        # Get performance insights
+        performance_insights = self.adaptive_difficulty.get_performance_insights(performance_assessment)
+        
+        # Get current difficulty recommendation
+        current_difficulty = student_profile['learning_preferences'].get('question_complexity', 'moderate')
+        difficulty_recommendation = self.adaptive_difficulty.recommend_difficulty_adjustment(
+            performance_assessment, current_difficulty
+        )
+        
+        debug_info = f"""## 🧠 Personalization Debug Info
+
+{profile_summary}
+
+**Current Performance**: {performance_insights}
+
+**Difficulty Adjustment**: {difficulty_recommendation.get('adjustment_reason', 'maintain current level')}
+Current: {current_difficulty} → Recommended: {difficulty_recommendation.get('new_difficulty_level', current_difficulty)}
+
+**Active Adaptations**:
+• Learning Style: {student_profile['learning_preferences']['style']}
+• Scaffolding Level: {student_profile['learning_preferences']['scaffolding_need']}
+• Evidence Preference: {student_profile['learning_preferences']['evidence_preference']}
+
+**Performance Trend**: {performance_assessment.get('performance_trend', 'stable')}"""
+        
+        return debug_info
+    
+    def handle_checkpoint_response(self, student_id: str, session_id: str, checkpoint_number: int,
+                                 student_response: str, chat_history: List[Dict],
+                                 current_question: Dict, assignment_context: Dict) -> str:
+        """Handle student's response to a checkpoint and adjust strategy accordingly"""
+        
+        # Record student response
+        self.conversation_checkpoint.record_student_checkpoint_response(
+            student_id, session_id, checkpoint_number, student_response
+        )
+        
+        # Parse student response and adjust strategy
+        response_lower = student_response.lower()
+        
+        if 'yes' in response_lower or 'keep going' in response_lower:
+            return """Great! I'm glad our approach is working for you. Let's continue building on your understanding. 
+
+What aspect of the question would you like to explore next?"""
+        
+        elif 'adjust focus' in response_lower or 'concentrate' in response_lower:
+            return f"""I understand - let's refocus on the core assignment requirements.
+
+**The question asks:** {current_question.get('prompt', 'the current assignment question')}
+
+**Key requirements:** {current_question.get('required_evidence', 'specific evidence from the article')}
+
+What specific part of this question should we tackle first?"""
+        
+        elif 'change approach' in response_lower or 'different strategy' in response_lower:
+            # Get student profile and try different learning style approach
+            if student_id:
+                student_profile = self.personalization_engine.get_or_create_student_profile(student_id)
+                current_style = student_profile['learning_preferences']['style']
+                
+                # Suggest alternative approaches
+                alternatives = {
+                    'visual': 'focus on examples and spatial relationships',
+                    'quantitative': 'work with data and measurements',
+                    'conceptual': 'explore theoretical frameworks',
+                    'applied': 'use real-world applications'
+                }
+                
+                return f"""Let's try a different approach! Instead of {current_style} learning, let's {alternatives.get(current_style, 'explore this differently')}.
+
+Would you prefer to:
+• **Visual approach**: Look at examples and patterns in the article
+• **Data-focused**: Find and analyze specific numbers and statistics  
+• **Concept-based**: Work through definitions and theoretical understanding
+• **Application-focused**: Connect this to real conservation scenarios
+
+Which appeals to you most?"""
+        
+        else:  # Questions or other responses
+            return """I'm here to help! What specific questions do you have about our discussion so far?
+
+Feel free to ask about:
+• The assignment requirements
+• The evidence we've found
+• Concepts that aren't clear
+• How to organize your thoughts
+
+What would be most helpful right now?"""
